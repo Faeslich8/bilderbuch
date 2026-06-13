@@ -24,7 +24,12 @@ import {
   type AlbumConfig,
 } from "../utils/albumConfig";
 import { toPoints, screenToLayoutPx } from "../utils/units";
-import { PdfElement, createDynamicStyles } from "./ElementRenderer";
+import {
+  PdfElement,
+  WebElement,
+  createDynamicStyles,
+  createWebStyles,
+} from "./ElementRenderer";
 import { photoBoxToImageElement } from "../utils/photoBoxToElement";
 import type { ImmichConfig } from "./ConnectionForm";
 import roboto400 from "@fontsource/roboto/files/roboto-latin-400-normal.woff?url";
@@ -57,36 +62,6 @@ const staticStyles = StyleSheet.create({
     backgroundColor: "white",
   },
 });
-
-// Web preview styles
-const createWebStyles = (fontSize: number) => {
-  const basePadding = fontSize * 0.67;
-
-  return {
-    date: {
-      hyphens: "none" as const,
-      wordWrap: "break-word" as const,
-      fontSize: `${fontSize}px`,
-      padding: `${basePadding * 0.5}px ${basePadding}px`,
-      borderRadius: `${basePadding * 0.5}px`,
-      lineHeight: 1,
-    },
-    description: {
-      hyphens: "none" as const,
-      wordWrap: "break-word" as const,
-      fontSize: `${fontSize}px`,
-      padding: `${basePadding}px`,
-      lineHeight: 1,
-    },
-    descriptionSide: {
-      hyphens: "none" as const,
-      wordWrap: "break-word" as const,
-      fontSize: `${fontSize}px`,
-      padding: `${basePadding}px`,
-      lineHeight: 1,
-    },
-  };
-};
 
 function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const [assets, setAssets] = useState<AssetResponseDto[]>([]);
@@ -1268,12 +1243,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       hasDescription &&
                       (descPosition === "left" || descPosition === "right");
 
-                    // When description is on left/right, photoBox.width is already doubled by the layout algorithm
-                    // So we use it as-is and split it between image and description
+                    // photoBox.width is already doubled by the layout for left/right captions;
+                    // the container keeps the full width, the renderer splits image vs. caption.
                     const containerWidth = toPoints(photoBox.width);
-                    const imageWidth = isLeftRight
-                      ? toPoints(photoBox.width) / 2
-                      : toPoints(photoBox.width);
 
                     return (
                       <div
@@ -1305,163 +1277,30 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-lg z-10" />
                         )}
 
-                        {/* Description on left (when position is 'left') */}
-                        {hasDescription && descPosition === "left" && (
-                          <div
-                            className="text-black cursor-pointer bg-gray-100 hover:bg-gray-200 transition-colors flex items-center justify-center"
-                            style={{
-                              width: `${imageWidth}px`,
-                              flexShrink: 0,
-                              ...webStyles.descriptionSide,
-                            }}
-                            onClick={(e) =>
-                              handleDescriptionClick(photoBox.asset.id, e)
-                            }
-                            title="Click to change position"
-                          >
-                            {photoBox.asset.exifInfo?.description}
-                          </div>
-                        )}
-
-                        <img
-                          src={imageUrl}
-                          alt={photoBox.asset.originalFileName}
-                          className="object-cover w-full h-full"
-                          style={
-                            isLeftRight
-                              ? { width: `${imageWidth}px`, flexShrink: 0 }
-                              : undefined
-                          }
-                          loading="lazy"
+                        <WebElement
+                          element={photoBoxToImageElement(photoBox, 0)}
+                          ctx={{
+                            imageUrl,
+                            alt: photoBox.asset.originalFileName,
+                            descPosition,
+                            description: hasDescription
+                              ? photoBox.asset.exifInfo?.description
+                              : undefined,
+                            dateText:
+                              showDates && photoBox.asset.fileCreatedAt
+                                ? new Date(
+                                    photoBox.asset.fileCreatedAt,
+                                  ).toLocaleDateString(undefined, {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  })
+                                : undefined,
+                            styles: webStyles,
+                            onLabelClick: (e) =>
+                              handleDescriptionClick(photoBox.asset.id, e),
+                          }}
                         />
-                        {showDates &&
-                          photoBox.asset.fileCreatedAt &&
-                          (() => {
-                            const getDateConfig = () => {
-                              switch (descPosition) {
-                                case "bottom":
-                                  return {
-                                    className:
-                                      "absolute top-2 right-2 bg-white/70 text-black backdrop-blur-sm cursor-pointer hover:bg-white/80 transition-colors",
-                                    style: webStyles.date,
-                                  };
-                                case "top":
-                                  return {
-                                    className:
-                                      "absolute bottom-2 right-2 bg-white/70 text-black backdrop-blur-sm cursor-pointer hover:bg-white/80 transition-colors",
-                                    style: webStyles.date,
-                                  };
-                                case "left":
-                                  return {
-                                    className:
-                                      "absolute top-4 left-2 text-black cursor-pointer",
-                                    style: webStyles.date,
-                                  };
-                                case "right":
-                                  return {
-                                    className:
-                                      "absolute top-4 text-black cursor-pointer",
-                                    style: {
-                                      ...webStyles.date,
-                                      left: `${imageWidth + 8}px`,
-                                    },
-                                  };
-                                default:
-                                  return {
-                                    className:
-                                      "absolute top-2 right-2 bg-white/70 text-black backdrop-blur-sm cursor-pointer hover:bg-white/80 transition-colors",
-                                    style: webStyles.date,
-                                  };
-                              }
-                            };
-                            const config = getDateConfig();
-                            return (
-                              <div
-                                className={config.className}
-                                style={config.style}
-                                onClick={(e) =>
-                                  handleDescriptionClick(photoBox.asset.id, e)
-                                }
-                                title="Click to change position"
-                              >
-                                {new Date(
-                                  photoBox.asset.fileCreatedAt,
-                                ).toLocaleDateString(undefined, {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                })}
-                              </div>
-                            );
-                          })()}
-                        {showDescriptions &&
-                          photoBox.asset.exifInfo?.description &&
-                          (() => {
-                            const descPosition =
-                              descriptionPositions.get(photoBox.asset.id) ||
-                              "bottom";
-                            const description =
-                              photoBox.asset.exifInfo?.description;
-
-                            if (
-                              descPosition === "left" ||
-                              descPosition === "right"
-                            ) {
-                              // For left/right: description is next to image, not overlaid
-                              return null;
-                            }
-
-                            const getDescriptionConfig = () => {
-                              switch (descPosition) {
-                                case "top":
-                                  return {
-                                    className:
-                                      "absolute top-0 left-0 right-0 bg-white/70 text-black cursor-pointer hover:bg-white/80 transition-colors z-10",
-                                    style: webStyles.description,
-                                  };
-                                case "bottom":
-                                default:
-                                  return {
-                                    className:
-                                      "absolute bottom-0 left-0 right-0 bg-white/70 text-black cursor-pointer hover:bg-white/80 transition-colors z-10",
-                                    style: webStyles.description,
-                                  };
-                              }
-                            };
-
-                            const config = getDescriptionConfig();
-
-                            return (
-                              <div
-                                className={config.className}
-                                style={config.style}
-                                onClick={(e) =>
-                                  handleDescriptionClick(photoBox.asset.id, e)
-                                }
-                                title="Click to change position"
-                              >
-                                {description}
-                              </div>
-                            );
-                          })()}
-
-                        {/* Description on right (when position is 'right') */}
-                        {hasDescription && descPosition === "right" && (
-                          <div
-                            className="text-black cursor-pointer bg-gray-100 hover:bg-gray-200 transition-colors flex items-center justify-center"
-                            style={{
-                              width: `${imageWidth}px`,
-                              flexShrink: 0,
-                              ...webStyles.descriptionSide,
-                            }}
-                            onClick={(e) =>
-                              handleDescriptionClick(photoBox.asset.id, e)
-                            }
-                            title="Click to change position"
-                          >
-                            {photoBox.asset.exifInfo?.description}
-                          </div>
-                        )}
 
                         {/* Customization indicators */}
                         {hasAspectRatioCustomization && (
