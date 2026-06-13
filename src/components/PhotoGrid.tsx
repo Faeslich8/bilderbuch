@@ -19,6 +19,12 @@ import {
   PAGE_SIZES,
   type PageAlignment,
 } from "../utils/pageLayout";
+import {
+  loadAlbumConfig,
+  saveAlbumConfig,
+  type Position,
+  type AlbumConfig,
+} from "../utils/albumConfig";
 import type { ImmichConfig } from "./ConnectionForm";
 import roboto400 from "@fontsource/roboto/files/roboto-latin-400-normal.woff?url";
 import roboto500 from "@fontsource/roboto/files/roboto-latin-500-normal.woff?url";
@@ -42,129 +48,6 @@ interface PhotoGridProps {
   immichConfig: ImmichConfig;
   album: AlbumResponseDto;
   onBack: () => void;
-}
-
-type Position = "bottom" | "top" | "left" | "right";
-
-interface GlobalConfig {
-  // Page settings
-  pageSize: "A4" | "LETTER" | "A3" | "CUSTOM";
-  orientation: "portrait" | "landscape";
-  pageWidth: number;
-  pageHeight: number;
-  margin: number;
-  combinePages: boolean;
-
-  // Layout settings
-  rowHeight: number;
-  spacing: number;
-  filterVideos: boolean;
-
-  // Display settings
-  showDates: boolean;
-  showDescriptions: boolean;
-  fontSize: number;
-}
-
-interface AlbumConfig extends GlobalConfig {
-  // Customizations (album-specific only)
-  customAspectRatios: Record<string, number>;
-  customOrdering: string[] | null;
-  descriptionPositions: Record<string, Position>;
-  pageAlignments: Record<number, PageAlignment>;
-}
-
-const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
-  pageSize: "CUSTOM",
-  orientation: "portrait",
-  pageWidth: 2515,
-  pageHeight: 3260,
-  margin: 118,
-  combinePages: true,
-  rowHeight: 994,
-  spacing: 20,
-  filterVideos: true,
-  showDates: true,
-  showDescriptions: true,
-  fontSize: 12,
-};
-
-// Helper functions for config persistence
-function loadGlobalConfig(): GlobalConfig {
-  try {
-    const stored = localStorage.getItem("immich-book-global-config");
-    if (stored) {
-      return { ...DEFAULT_GLOBAL_CONFIG, ...JSON.parse(stored) };
-    }
-  } catch (e) {
-    console.error("Failed to load global config:", e);
-  }
-  return DEFAULT_GLOBAL_CONFIG;
-}
-
-function saveGlobalConfig(config: GlobalConfig) {
-  try {
-    localStorage.setItem("immich-book-global-config", JSON.stringify(config));
-  } catch (e) {
-    console.error("Failed to save global config:", e);
-  }
-}
-
-function loadAlbumConfig(albumId: string): AlbumConfig {
-  const globalConfig = loadGlobalConfig();
-
-  try {
-    const stored = localStorage.getItem(`immich-book-config-${albumId}`);
-    if (stored) {
-      const albumSpecific = JSON.parse(stored);
-      return {
-        ...globalConfig,
-        customAspectRatios: {},
-        customOrdering: null,
-        descriptionPositions: {},
-        pageAlignments: {},
-        ...albumSpecific,
-      };
-    }
-  } catch (e) {
-    console.error("Failed to load album config:", e);
-  }
-
-  return {
-    ...globalConfig,
-    customAspectRatios: {},
-    customOrdering: null,
-    descriptionPositions: {},
-    pageAlignments: {},
-  };
-}
-
-function saveAlbumConfig(albumId: string, config: AlbumConfig) {
-  try {
-    localStorage.setItem(
-      `immich-book-config-${albumId}`,
-      JSON.stringify(config),
-    );
-
-    // Also update global config with page and layout settings
-    const globalConfig: GlobalConfig = {
-      pageSize: config.pageSize,
-      orientation: config.orientation,
-      pageWidth: config.pageWidth,
-      pageHeight: config.pageHeight,
-      margin: config.margin,
-      combinePages: config.combinePages,
-      rowHeight: config.rowHeight,
-      spacing: config.spacing,
-      filterVideos: config.filterVideos,
-      showDates: config.showDates,
-      showDescriptions: config.showDescriptions,
-      fontSize: config.fontSize,
-    };
-    saveGlobalConfig(globalConfig);
-  } catch (e) {
-    console.error("Failed to save album config:", e);
-  }
 }
 
 // Convert 300 DPI pixels to 72 DPI points for PDF
