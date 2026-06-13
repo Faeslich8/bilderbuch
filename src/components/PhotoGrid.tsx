@@ -103,8 +103,8 @@ const createDynamicStyles = (fontSize: number) => {
     },
     descriptionSide: {
       padding: basePadding,
-      display: "flex",
-      justifyContent: "center",
+      display: "flex" as const,
+      justifyContent: "center" as const,
       backgroundColor: "#F3F4F6",
     },
   };
