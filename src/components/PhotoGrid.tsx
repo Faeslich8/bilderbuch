@@ -25,6 +25,7 @@ import {
   type Position,
   type AlbumConfig,
 } from "../utils/albumConfig";
+import { toPoints, screenToLayoutPx } from "../utils/units";
 import type { ImmichConfig } from "./ConnectionForm";
 import roboto400 from "@fontsource/roboto/files/roboto-latin-400-normal.woff?url";
 import roboto500 from "@fontsource/roboto/files/roboto-latin-500-normal.woff?url";
@@ -49,12 +50,6 @@ interface PhotoGridProps {
   album: AlbumResponseDto;
   onBack: () => void;
 }
-
-// Convert 300 DPI pixels to 72 DPI points for PDF
-// At 300 DPI: 1 inch = 300 pixels
-// At 72 DPI: 1 inch = 72 points
-// Conversion: points = pixels * (72/300)
-const toPoints = (pixels: number) => pixels * (72 / 300);
 
 // Static styles for the PDF
 const staticStyles = StyleSheet.create({
@@ -545,7 +540,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     const handleMouseMove = (event: MouseEvent) => {
       const deltaX = event.clientX - aspectDragState.startX;
       // Convert from 72 DPI screen to 300 DPI layout
-      const deltaPixels = deltaX * (300 / 72);
+      const deltaPixels = screenToLayoutPx(deltaX);
 
       // Calculate new width based on edge being dragged
       const widthDelta =
