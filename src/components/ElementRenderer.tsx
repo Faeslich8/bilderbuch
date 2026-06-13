@@ -187,7 +187,7 @@ export interface PdfImageContext {
   imageUrl: string;
   descPosition: Position;
   /** Bereits upstream über showDescriptions gefiltert; leer/undefined ⇒ nicht zeigen. */
-  description?: string;
+  description?: string | null;
   /** Bereits upstream über showDates + fileCreatedAt gefiltert; undefined ⇒ nicht zeigen. */
   dateText?: string;
   styles: PdfStyles;
@@ -197,7 +197,7 @@ export interface WebImageContext {
   imageUrl: string;
   alt?: string;
   descPosition: Position;
-  description?: string;
+  description?: string | null;
   dateText?: string;
   styles: WebStyles;
   /** Web-only: Klick auf Datum/Beschreibung (Position zyklieren). PDF ignoriert das. */

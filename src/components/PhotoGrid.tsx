@@ -8,9 +8,7 @@ import {
   PDFViewer,
   Document,
   Page,
-  Image,
   View,
-  Text,
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
@@ -26,6 +24,8 @@ import {
   type AlbumConfig,
 } from "../utils/albumConfig";
 import { toPoints, screenToLayoutPx } from "../utils/units";
+import { PdfElement, createDynamicStyles } from "./ElementRenderer";
+import { photoBoxToImageElement } from "../utils/photoBoxToElement";
 import type { ImmichConfig } from "./ConnectionForm";
 import roboto400 from "@fontsource/roboto/files/roboto-latin-400-normal.woff?url";
 import roboto500 from "@fontsource/roboto/files/roboto-latin-500-normal.woff?url";
@@ -51,59 +51,12 @@ interface PhotoGridProps {
   onBack: () => void;
 }
 
-// Static styles for the PDF
+// Static styles for the PDF (page background only; element styles live in ElementRenderer)
 const staticStyles = StyleSheet.create({
   page: {
     backgroundColor: "white",
   },
-  photoContainer: {
-    position: "absolute",
-  },
-  photo: {
-    width: "100%",
-    height: "100%",
-    objectFit: "cover",
-  },
 });
-
-// Dynamic styles based on font size
-const createDynamicStyles = (fontSize: number) => {
-  const basePadding = fontSize * 0.67;
-
-  return {
-    // Common text style
-    text: {
-      color: "black",
-      fontSize: fontSize,
-      fontFamily: "Roboto",
-      lineHeight: 1,
-      letterSpacing: 0.2,
-    },
-    // Date overlay styles
-    dateOverlay: {
-      backgroundColor: "rgba(255, 255, 255, 0.7)",
-      paddingHorizontal: basePadding,
-      paddingVertical: basePadding * 0.5,
-      borderRadius: basePadding * 0.5,
-    },
-    // Description styles
-    descriptionOverlay: {
-      backgroundColor: "rgba(255, 255, 255, 0.7)",
-      color: "black",
-      fontSize: fontSize,
-      padding: basePadding,
-      fontFamily: "Roboto",
-      lineHeight: 1,
-      letterSpacing: 0.2,
-    },
-    descriptionSide: {
-      padding: basePadding,
-      display: "flex" as const,
-      justifyContent: "center" as const,
-      backgroundColor: "#F3F4F6",
-    },
-  };
-};
 
 // Web preview styles
 const createWebStyles = (fontSize: number) => {
@@ -1008,167 +961,29 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       const hasDescription =
                         showDescriptions &&
                         !!photoBox.asset.exifInfo?.description;
-                      const isLeftRight =
-                        hasDescription &&
-                        (descPosition === "left" || descPosition === "right");
-
-                      // When description is on left/right, photoBox.width is already doubled by the layout algorithm
-                      // So we use it as-is and split it between image and description
-                      const containerWidth = toPoints(photoBox.width);
-                      const imageWidth = isLeftRight
-                        ? toPoints(photoBox.width) / 2
-                        : toPoints(photoBox.width);
-
-                      // Use absolute positioning for everything (no flex for left/right)
-                      const containerStyle = [
-                        staticStyles.photoContainer,
-                        {
-                          left: toPoints(photoBox.x),
-                          top: toPoints(photoBox.y),
-                          width: containerWidth,
-                          height: toPoints(photoBox.height),
-                        },
-                      ];
-
                       return (
-                        <View key={photoBox.asset.id} style={containerStyle}>
-                          {/* Description on left - absolutely positioned */}
-                          {hasDescription && descPosition === "left" && (
-                            <View
-                              style={[
-                                pdfStyles.descriptionSide,
-                                {
-                                  position: "absolute",
-                                  left: 0,
-                                  top: 0,
-                                  width: imageWidth,
-                                  height: toPoints(photoBox.height),
-                                },
-                              ]}
-                            >
-                              <Text
-                                hyphenationCallback={(word) => [word]}
-                                style={pdfStyles.text}
-                              >
-                                {photoBox.asset.exifInfo?.description}
-                              </Text>
-                            </View>
-                          )}
-
-                          {/* Image - absolutely positioned */}
-                          <Image
-                            src={imageUrl}
-                            style={
-                              isLeftRight
-                                ? {
-                                    position: "absolute",
-                                    left:
-                                      descPosition === "left" ? imageWidth : 0,
-                                    top: 0,
-                                    width: imageWidth,
-                                    height: toPoints(photoBox.height),
-                                    objectFit: "cover",
-                                  }
-                                : staticStyles.photo
-                            }
-                          />
-
-                          {/* Description on right - absolutely positioned */}
-                          {hasDescription && descPosition === "right" && (
-                            <View
-                              style={[
-                                pdfStyles.descriptionSide,
-                                {
-                                  position: "absolute",
-                                  right: 0,
-                                  top: 0,
-                                  width: imageWidth,
-                                  height: toPoints(photoBox.height),
-                                },
-                              ]}
-                            >
-                              <Text
-                                hyphenationCallback={(word) => [word]}
-                                style={pdfStyles.text}
-                              >
-                                {photoBox.asset.exifInfo?.description}
-                              </Text>
-                            </View>
-                          )}
-
-                          {/* Date - absolutely positioned */}
-                          {showDates && photoBox.asset.fileCreatedAt && (
-                            <View
-                              style={(() => {
-                                switch (descPosition) {
-                                  case "bottom":
-                                    return {
-                                      ...pdfStyles.dateOverlay,
-                                      position: "absolute",
-                                      top: 8,
-                                      right: 8,
-                                    };
-                                  case "top":
-                                    return {
-                                      ...pdfStyles.dateOverlay,
-                                      position: "absolute",
-                                      bottom: 8,
-                                      right: 8,
-                                    };
-                                  case "left":
-                                    return {
-                                      position: "absolute",
-                                      top: 16,
-                                      left: 8,
-                                    };
-                                  case "right":
-                                    return {
-                                      position: "absolute",
-                                      top: 16,
-                                      left: imageWidth + 8,
-                                    };
-                                  default:
-                                    return {
-                                      ...pdfStyles.dateOverlay,
-                                      position: "absolute",
-                                      top: 8,
-                                      right: 8,
-                                    };
-                                }
-                              })()}
-                            >
-                              <Text style={pdfStyles.text}>
-                                {new Date(
-                                  photoBox.asset.fileCreatedAt,
-                                ).toLocaleDateString(undefined, {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                })}
-                              </Text>
-                            </View>
-                          )}
-
-                          {/* Description for top/bottom positions */}
-                          {hasDescription &&
-                            (descPosition === "top" ||
-                              descPosition === "bottom") && (
-                              <Text
-                                hyphenationCallback={(word) => [word]}
-                                style={{
-                                  ...pdfStyles.descriptionOverlay,
-                                  position: "absolute",
-                                  ...(descPosition === "top"
-                                    ? { top: 0 }
-                                    : { bottom: 0 }),
-                                  left: 0,
-                                  right: 0,
-                                }}
-                              >
-                                {photoBox.asset.exifInfo?.description}
-                              </Text>
-                            )}
-                        </View>
+                        <PdfElement
+                          key={photoBox.asset.id}
+                          element={photoBoxToImageElement(photoBox, 0)}
+                          ctx={{
+                            imageUrl,
+                            descPosition,
+                            description: hasDescription
+                              ? photoBox.asset.exifInfo?.description
+                              : undefined,
+                            dateText:
+                              showDates && photoBox.asset.fileCreatedAt
+                                ? new Date(
+                                    photoBox.asset.fileCreatedAt,
+                                  ).toLocaleDateString(undefined, {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  })
+                                : undefined,
+                            styles: pdfStyles,
+                          }}
+                        />
                       );
                     })}
                   </Page>
