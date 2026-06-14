@@ -31,10 +31,7 @@ import {
   createWebStyles,
   elementBoxStyle,
 } from "./ElementRenderer";
-import {
-  photoBoxToImageElement,
-  computeStablePageId,
-} from "../utils/photoBoxToElement";
+import { photoBoxToImageElement } from "../utils/photoBoxToElement";
 import {
   createImageElement,
   isImageElement,
@@ -442,10 +439,16 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
   // Calculate unified page layout - single source of truth!
   const pages = useMemo(() => {
+    // Phase 3: "freed" (manual) images leave the auto layout so the rest reflow
+    // and close the gap; the free overlay copy floats on top.
+    const layoutAssets = filteredAssets.filter(
+      (a) => !manualizedAssetIds.has(a.id),
+    );
+
     // Adjust aspect ratios for assets with left/right description positions
     const adjustedAspectRatios = new Map(customAspectRatios);
 
-    filteredAssets.forEach((asset) => {
+    layoutAssets.forEach((asset) => {
       const descPosition = descriptionPositions.get(asset.id) || "bottom";
       const hasDescription = showDescriptions && !!asset.exifInfo?.description;
 
@@ -471,7 +474,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       }
     });
 
-    return calculatePageLayout(filteredAssets, {
+    return calculatePageLayout(layoutAssets, {
       pageSize: "CUSTOM",
       orientation: "portrait",
       margin: validMargin,
@@ -485,6 +488,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     });
   }, [
     filteredAssets,
+    manualizedAssetIds,
     validMargin,
     validRowHeight,
     validSpacing,
@@ -524,6 +528,19 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       }
       return next;
     });
+  };
+
+  // Phase 3: re-fix a freed element (undo "Lösen") so its asset rejoins the auto layout.
+  const refixElement = (id: string) => {
+    setOverlayElements((prev) => {
+      const next: Record<string, PageElement[]> = {};
+      for (const [pageId, els] of Object.entries(prev)) {
+        const kept = els.filter((el) => el.id !== id);
+        if (kept.length) next[pageId] = kept;
+      }
+      return next;
+    });
+    setSelectedElementId(null);
   };
 
   // Handle aspect ratio drag
@@ -995,9 +1012,6 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     )}
 
                     {pageData.photos.map((photoBox) => {
-                      // Phase 3: a "freed" image keeps its layout slot but its auto
-                      // image is hidden; the manual overlay copy is what shows.
-                      if (manualizedAssetIds.has(photoBox.asset.id)) return null;
                       const imageUrl = `${immichConfig.baseUrl}/assets/${photoBox.asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`;
                       const descPosition =
                         descriptionPositions.get(photoBox.asset.id) || "bottom";
@@ -1029,7 +1043,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         />
                       );
                     })}
-                    {(overlayElements[computeStablePageId(pageData)] ?? [])
+                    {(overlayElements[String(pageData.pageNumber)] ?? [])
                       .filter(isImageElement)
                       .map((el) => (
                         <PdfElement
@@ -1050,7 +1064,32 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
         </div>
       ) : (
         /* Live Preview */
-        <div className="space-y-8 pb-8 overflow-x-auto px-4 sm:px-0">
+        <div
+          className="space-y-8 pb-8 overflow-x-auto px-4 sm:px-0"
+          onClick={() => setSelectedElementId(null)}
+        >
+          {selectedElementId && (
+            <div
+              className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded border border-gray-300 bg-white/95 px-3 py-1.5 shadow-lg"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span className="text-xs text-gray-600">
+                Freies Element ausgewählt
+              </span>
+              <button
+                onClick={() => refixElement(selectedElementId)}
+                className="text-xs px-2 py-0.5 bg-gray-700 hover:bg-gray-900 text-white rounded"
+              >
+                Fixieren (Lösen rückgängig)
+              </button>
+              <button
+                onClick={() => setSelectedElementId(null)}
+                className="text-xs px-2 py-0.5 bg-white border border-gray-300 hover:bg-gray-50 rounded"
+              >
+                Abwählen
+              </button>
+            </div>
+          )}
           {pages.map((page) => {
             // Scale down to match PDF dimensions (72 DPI from 300 DPI)
             const displayWidth = toPoints(page.width);
@@ -1328,23 +1367,6 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     // the container keeps the full width, the renderer splits image vs. caption.
                     const containerWidth = toPoints(photoBox.width);
 
-                    // Phase 3: a "freed" image keeps its slot (an empty dashed
-                    // placeholder); the manual overlay copy is what shows + moves.
-                    if (manualizedAssetIds.has(photoBox.asset.id)) {
-                      return (
-                        <div
-                          key={photoBox.asset.id}
-                          className="absolute border border-dashed border-gray-300"
-                          style={{
-                            left: `${toPoints(photoBox.x)}px`,
-                            top: `${toPoints(photoBox.y)}px`,
-                            width: `${containerWidth}px`,
-                            height: `${toPoints(photoBox.height)}px`,
-                          }}
-                        />
-                      );
-                    }
-
                     return (
                       <div
                         key={photoBox.asset.id}
@@ -1474,7 +1496,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            const pageId = computeStablePageId(page);
+                            const pageId = String(page.pageNumber);
                             const newEl = createImageElement(photoBox.asset.id, {
                               x: photoBox.x,
                               y: photoBox.y,
@@ -1533,7 +1555,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   })}
 
                   {/* Phase 3: free overlay elements, rendered above the auto layout */}
-                  {(overlayElements[computeStablePageId(page)] ?? [])
+                  {(overlayElements[String(page.pageNumber)] ?? [])
                     .filter(isImageElement)
                     .map((el) => (
                       <div
@@ -1568,6 +1590,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           {moveableTarget && (
             <Moveable
               target={moveableTarget}
+              rootContainer={
+                typeof document !== "undefined" ? document.body : undefined
+              }
               draggable
               resizable
               rotatable
