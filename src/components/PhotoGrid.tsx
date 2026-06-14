@@ -29,8 +29,13 @@ import {
   WebElement,
   createDynamicStyles,
   createWebStyles,
+  elementBoxStyle,
 } from "./ElementRenderer";
-import { photoBoxToImageElement } from "../utils/photoBoxToElement";
+import {
+  photoBoxToImageElement,
+  computeStablePageId,
+} from "../utils/photoBoxToElement";
+import { isImageElement, type PageElement } from "../types/pageElement";
 import type { ImmichConfig } from "./ConnectionForm";
 import roboto400 from "@fontsource/roboto/files/roboto-latin-400-normal.woff?url";
 import roboto500 from "@fontsource/roboto/files/roboto-latin-500-normal.woff?url";
@@ -163,6 +168,11 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     originalWidth: number;
   } | null>(null);
 
+  // Phase 3: free-form overlay elements per stable page id (Phase-1 store, now live)
+  const [overlayElements] = useState<Record<string, PageElement[]>>(
+    initialConfig.overlayElements,
+  );
+
   // Update page dimensions when size or orientation changes
   useEffect(() => {
     if (pageSize !== "CUSTOM") {
@@ -212,7 +222,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       descriptionPositions: Object.fromEntries(descriptionPositions),
       pageAlignments: Object.fromEntries(pageAlignments),
     };
-    saveAlbumConfig(album.id, config);
+    saveAlbumConfig(album.id, { ...config, overlayElements });
   }, [
     album.id,
     pageSize,
@@ -231,6 +241,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     customOrdering,
     descriptionPositions,
     pageAlignments,
+    overlayElements,
     isPageWidthValid,
     isPageHeightValid,
     isMarginValid,
@@ -961,6 +972,19 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         />
                       );
                     })}
+                    {(overlayElements[computeStablePageId(pageData)] ?? [])
+                      .filter(isImageElement)
+                      .map((el) => (
+                        <PdfElement
+                          key={el.id}
+                          element={el}
+                          ctx={{
+                            imageUrl: `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
+                            descPosition: "bottom",
+                            styles: pdfStyles,
+                          }}
+                        />
+                      ))}
                   </Page>
                 );
               })}
@@ -1410,6 +1434,26 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       </div>
                     );
                   })}
+
+                  {/* Phase 3: free overlay elements, rendered above the auto layout */}
+                  {(overlayElements[computeStablePageId(page)] ?? [])
+                    .filter(isImageElement)
+                    .map((el) => (
+                      <div
+                        key={el.id}
+                        className="absolute overflow-hidden"
+                        style={elementBoxStyle(el)}
+                      >
+                        <WebElement
+                          element={el}
+                          ctx={{
+                            imageUrl: `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
+                            descPosition: "bottom",
+                            styles: webStyles,
+                          }}
+                        />
+                      </div>
+                    ))}
                 </div>
               </div>
             );
