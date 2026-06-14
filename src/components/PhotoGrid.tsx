@@ -35,7 +35,11 @@ import {
   photoBoxToImageElement,
   computeStablePageId,
 } from "../utils/photoBoxToElement";
-import { isImageElement, type PageElement } from "../types/pageElement";
+import {
+  createImageElement,
+  isImageElement,
+  type PageElement,
+} from "../types/pageElement";
 import type { ImmichConfig } from "./ConnectionForm";
 import roboto400 from "@fontsource/roboto/files/roboto-latin-400-normal.woff?url";
 import roboto500 from "@fontsource/roboto/files/roboto-latin-500-normal.woff?url";
@@ -169,9 +173,20 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   } | null>(null);
 
   // Phase 3: free-form overlay elements per stable page id (Phase-1 store, now live)
-  const [overlayElements] = useState<Record<string, PageElement[]>>(
-    initialConfig.overlayElements,
-  );
+  const [overlayElements, setOverlayElements] = useState<
+    Record<string, PageElement[]>
+  >(initialConfig.overlayElements);
+
+  // Asset ids "unlocked" into free manual elements (excluded from the auto layout).
+  const manualizedAssetIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const els of Object.values(overlayElements)) {
+      for (const el of els) {
+        if (isImageElement(el) && el.source === "manual") ids.add(el.assetId);
+      }
+    }
+    return ids;
+  }, [overlayElements]);
 
   // Update page dimensions when size or orientation changes
   useEffect(() => {
@@ -417,10 +432,16 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
   // Calculate unified page layout - single source of truth!
   const pages = useMemo(() => {
+    // Phase 3: assets "unlocked" into free manual overlay elements leave the auto
+    // layout so they don't render twice.
+    const layoutAssets = filteredAssets.filter(
+      (a) => !manualizedAssetIds.has(a.id),
+    );
+
     // Adjust aspect ratios for assets with left/right description positions
     const adjustedAspectRatios = new Map(customAspectRatios);
 
-    filteredAssets.forEach((asset) => {
+    layoutAssets.forEach((asset) => {
       const descPosition = descriptionPositions.get(asset.id) || "bottom";
       const hasDescription = showDescriptions && !!asset.exifInfo?.description;
 
@@ -446,7 +467,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       }
     });
 
-    return calculatePageLayout(filteredAssets, {
+    return calculatePageLayout(layoutAssets, {
       pageSize: "CUSTOM",
       orientation: "portrait",
       margin: validMargin,
@@ -460,6 +481,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     });
   }, [
     filteredAssets,
+    manualizedAssetIds,
     validMargin,
     validRowHeight,
     validSpacing,
@@ -1393,6 +1415,29 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             Reset
                           </div>
                         )}
+
+                        {/* Phase 3: unlock this auto image into a free element */}
+                        <button
+                          className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800/80 hover:bg-gray-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const pageId = computeStablePageId(page);
+                            const newEl = createImageElement(photoBox.asset.id, {
+                              x: photoBox.x,
+                              y: photoBox.y,
+                              width: photoBox.width,
+                              height: photoBox.height,
+                            });
+                            setOverlayElements((prev) => ({
+                              ...prev,
+                              [pageId]: [...(prev[pageId] ?? []), newEl],
+                            }));
+                          }}
+                          title="Aus dem Auto-Layout lösen (frei platzierbar)"
+                        >
+                          Lösen
+                        </button>
 
                         {/* Left drag handle */}
                         <div
