@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   getAlbumInfo,
   type AlbumResponseDto,
@@ -1587,12 +1588,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             );
           })}
 
-          {moveableTarget && (
-            <Moveable
+          {moveableTarget &&
+            createPortal(
+              <Moveable
               target={moveableTarget}
-              rootContainer={
-                typeof document !== "undefined" ? document.body : undefined
-              }
               draggable
               resizable
               rotatable
@@ -1626,8 +1625,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   rotation: el.rotation + e.delta,
                 }));
               }}
-            />
-          )}
+            />,
+              document.body,
+            )}
         </div>
       )}
     </div>
