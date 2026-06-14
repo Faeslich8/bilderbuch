@@ -72,6 +72,21 @@ const staticStyles = StyleSheet.create({
   },
 });
 
+// A "Leerraum" (blocker) participates in the auto layout like a photo but renders as
+// empty design space. Identified by an id prefix; carries no real asset.
+const BLOCKER_PREFIX = "blocker:";
+const isBlocker = (id: string): boolean => id.startsWith(BLOCKER_PREFIX);
+
+// Placeholder asset so a blocker flows through calculatePageLayout. The 1:1 default
+// ratio is overridden by customAspectRatios, so the edge-drag handles resize it.
+const blockerAsset = (id: string): AssetResponseDto =>
+  ({
+    id,
+    type: "IMAGE",
+    originalFileName: "Leerraum",
+    exifInfo: { exifImageWidth: 1000, exifImageHeight: 1000 },
+  }) as unknown as AssetResponseDto;
+
 function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const [assets, setAssets] = useState<AssetResponseDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -421,7 +436,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     );
     // Reorder based on customOrdering, filtering out any IDs that don't exist
     const reordered = customOrdering
-      .map((id) => assetMap.get(id))
+      .map((id) =>
+        assetMap.get(id) ?? (isBlocker(id) ? blockerAsset(id) : undefined),
+      )
       .filter((asset): asset is AssetResponseDto => asset !== undefined);
 
     // Add any assets that aren't in customOrdering at the end
@@ -432,6 +449,25 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
     return [...reordered, ...remaining];
   }, [defaultFilteredAssets, customOrdering]);
+
+  // Insert / remove a "Leerraum" blocker (a layout placeholder; its position lives in
+  // customOrdering, its size in customAspectRatios — both already persisted).
+  const handleAddBlocker = () => {
+    const id = `${BLOCKER_PREFIX}${crypto.randomUUID()}`;
+    setCustomAspectRatios((prev) => new Map(prev).set(id, 1));
+    setCustomOrdering((prev) => [
+      ...(prev ?? defaultFilteredAssets.map((a) => a.id)),
+      id,
+    ]);
+  };
+  const handleDeleteBlocker = (id: string) => {
+    setCustomOrdering((prev) => (prev ? prev.filter((x) => x !== id) : prev));
+    setCustomAspectRatios((prev) => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+  };
 
   // Calculate content width for snapping
   const contentWidth = useMemo(() => {
@@ -660,7 +696,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           </p>
 
           {/* Generate PDF / Back to Edit button */}
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap gap-2">
             {mode === "preview" ? (
               <button
                 onClick={() => setMode("pdf")}
@@ -674,6 +710,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors shadow-sm"
               >
                 Back to Edit
+              </button>
+            )}
+            {mode === "preview" && (
+              <button
+                onClick={handleAddBlocker}
+                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm text-sm"
+                title="Leeren Gestaltungsraum einfügen (drückt Bilder weg)"
+              >
+                + Leerraum
               </button>
             )}
           </div>
@@ -1013,6 +1058,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     )}
 
                     {pageData.photos.map((photoBox) => {
+                      // Blockers reserve empty space in the PDF (nothing drawn).
+                      if (isBlocker(photoBox.asset.id)) return null;
                       const imageUrl = `${immichConfig.baseUrl}/assets/${photoBox.asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`;
                       const descPosition =
                         descriptionPositions.get(photoBox.asset.id) || "bottom";
@@ -1367,6 +1414,77 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     // photoBox.width is already doubled by the layout for left/right captions;
                     // the container keeps the full width, the renderer splits image vs. caption.
                     const containerWidth = toPoints(photoBox.width);
+
+                    // Blocker: empty design space (reorder + edge-resize like a photo).
+                    if (isBlocker(photoBox.asset.id)) {
+                      return (
+                        <div
+                          key={photoBox.asset.id}
+                          className={`absolute group ${isBeingDragged ? "opacity-50" : ""}`}
+                          style={{
+                            left: `${toPoints(photoBox.x)}px`,
+                            top: `${toPoints(photoBox.y)}px`,
+                            width: `${containerWidth}px`,
+                            height: `${toPoints(photoBox.height)}px`,
+                          }}
+                          draggable
+                          onDragStart={(e) =>
+                            handleReorderDragStart(
+                              photoBox.asset.id,
+                              globalIndex,
+                              e,
+                            )
+                          }
+                          onDragOver={(e) => handleReorderDragOver(globalIndex, e)}
+                          onDragEnd={handleReorderDragEnd}
+                          onDrop={(e) => handleReorderDrop(globalIndex, e)}
+                        >
+                          {isDropTarget && reorderDragState && (
+                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-lg z-10" />
+                          )}
+                          <div className="w-full h-full border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-gray-400 text-xs select-none">
+                            Leerraum
+                          </div>
+                          <button
+                            className="absolute top-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleDeleteBlocker(photoBox.asset.id);
+                            }}
+                            title="Leerraum entfernen"
+                          >
+                            Entfernen
+                          </button>
+                          <div
+                            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-transparent group-hover:bg-blue-400/50 transition-colors"
+                            onMouseDown={(e) =>
+                              handleAspectDragStart(
+                                photoBox.asset.id,
+                                "left",
+                                aspectRatio,
+                                photoBox.x,
+                                photoBox.width,
+                                e,
+                              )
+                            }
+                          />
+                          <div
+                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-transparent group-hover:bg-blue-400/50 transition-colors"
+                            onMouseDown={(e) =>
+                              handleAspectDragStart(
+                                photoBox.asset.id,
+                                "right",
+                                aspectRatio,
+                                photoBox.x,
+                                photoBox.width,
+                                e,
+                              )
+                            }
+                          />
+                        </div>
+                      );
+                    }
 
                     return (
                       <div
