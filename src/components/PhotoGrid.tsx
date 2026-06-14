@@ -48,6 +48,7 @@ import {
   mdiFormatAlignLeft,
   mdiFormatAlignCenter,
   mdiFormatAlignRight,
+  mdiTrashCanOutline,
 } from "@mdi/js";
 
 // Register Roboto font for PDF using local bundled files
@@ -211,6 +212,20 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     null,
   );
 
+  // Images removed from the book (kept in Immich); plus the restore-panel toggle.
+  const [excludedAssetIds, setExcludedAssetIds] = useState<Set<string>>(
+    () => new Set(initialConfig.excludedAssetIds),
+  );
+  const [showExcludedPanel, setShowExcludedPanel] = useState(false);
+  const handleExcludeAsset = (id: string) =>
+    setExcludedAssetIds((prev) => new Set(prev).add(id));
+  const handleRestoreAsset = (id: string) =>
+    setExcludedAssetIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+
   // Update page dimensions when size or orientation changes
   useEffect(() => {
     if (pageSize !== "CUSTOM") {
@@ -259,6 +274,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       customOrdering,
       descriptionPositions: Object.fromEntries(descriptionPositions),
       pageAlignments: Object.fromEntries(pageAlignments),
+      excludedAssetIds: Array.from(excludedAssetIds),
     };
     saveAlbumConfig(album.id, { ...config, overlayElements });
   }, [
@@ -280,6 +296,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     descriptionPositions,
     pageAlignments,
     overlayElements,
+    excludedAssetIds,
     isPageWidthValid,
     isPageHeightValid,
     isMarginValid,
@@ -421,10 +438,11 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
   // Filter assets based on user preferences (default order)
   const defaultFilteredAssets = useMemo(() => {
-    return filterVideos
+    const base = filterVideos
       ? assets.filter((asset) => asset.type === "IMAGE")
       : assets;
-  }, [assets, filterVideos]);
+    return base.filter((asset) => !excludedAssetIds.has(asset.id));
+  }, [assets, filterVideos, excludedAssetIds]);
 
   // Apply custom ordering to filtered assets
   const filteredAssets = useMemo(() => {
@@ -719,6 +737,16 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 title="Leeren Gestaltungsraum einfügen (drückt Bilder weg)"
               >
                 + Leerraum
+              </button>
+            )}
+            {excludedAssetIds.size > 0 && (
+              <button
+                onClick={() => setShowExcludedPanel((v) => !v)}
+                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm text-sm flex items-center gap-1.5"
+                title="Aus dem Buch entfernte Bilder anzeigen / wiederherstellen"
+              >
+                <Icon path={mdiTrashCanOutline} size={0.7} />
+                {excludedAssetIds.size}
               </button>
             )}
           </div>
@@ -1018,6 +1046,46 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           )}
         </div>
       </div>
+
+      {showExcludedPanel && (
+        <div className="mb-6 p-3 bg-gray-50 border border-gray-300 rounded">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-700">
+              Aus dem Buch entfernt ({excludedAssetIds.size}) — bleiben in Immich
+            </h3>
+            <button
+              onClick={() => setShowExcludedPanel(false)}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Schließen
+            </button>
+          </div>
+          {excludedAssetIds.size === 0 ? (
+            <p className="text-xs text-gray-500">Keine entfernten Bilder.</p>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              {assets
+                .filter((a) => excludedAssetIds.has(a.id))
+                .map((asset) => (
+                  <div key={asset.id} className="relative w-24 h-24 group">
+                    <img
+                      src={`${immichConfig.baseUrl}/assets/${asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`}
+                      alt={asset.originalFileName}
+                      className="w-full h-full object-cover rounded border border-gray-300"
+                      loading="lazy"
+                    />
+                    <button
+                      onClick={() => handleRestoreAsset(asset.id)}
+                      className="absolute inset-x-0 bottom-0 bg-blue-600/90 hover:bg-blue-700 text-white text-[10px] py-1 rounded-b opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      Wiederherstellen
+                    </button>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {mode === "pdf" ? (
         /* PDF Viewer */
@@ -1630,6 +1698,19 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           title="Aus dem Auto-Layout lösen (frei platzierbar)"
                         >
                           Lösen
+                        </button>
+
+                        {/* Aus dem Buch entfernen (bleibt in Immich) */}
+                        <button
+                          className="absolute bottom-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-red-600/90 hover:bg-red-700 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleExcludeAsset(photoBox.asset.id);
+                          }}
+                          title="Aus dem Fotobuch entfernen (bleibt in Immich)"
+                        >
+                          Entfernen
                         </button>
 
                         {/* Left drag handle */}

@@ -140,6 +140,7 @@ export function migrateRawAlbumConfig(
       pageAlignments: {},
       overlayElements: {},
       imageCaptions: {},
+      excludedAssetIds: [],
     };
   }
 
@@ -154,6 +155,9 @@ export function migrateRawAlbumConfig(
   const pageAlignments = isPlainObject(raw.pageAlignments)
     ? (raw.pageAlignments as Record<number, PageAlignment>)
     : {};
+  const excludedAssetIds = Array.isArray(raw.excludedAssetIds)
+    ? (raw.excludedAssetIds as string[])
+    : [];
 
   // Bereits V2?
   if (raw.schemaVersion === SCHEMA_VERSION) {
@@ -165,6 +169,7 @@ export function migrateRawAlbumConfig(
       pageAlignments,
       overlayElements: sanitizeOverlayElements(raw.overlayElements),
       imageCaptions: sanitizeImageCaptions(raw.imageCaptions),
+      excludedAssetIds,
     };
   }
 
@@ -177,5 +182,6 @@ export function migrateRawAlbumConfig(
     pageAlignments,
     overlayElements: {},
     imageCaptions: captionsFromDescriptionPositions(raw.descriptionPositions),
+    excludedAssetIds,
   };
 }

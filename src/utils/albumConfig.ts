@@ -72,6 +72,8 @@ export interface AlbumConfig extends GlobalConfig {
   customOrdering: string[] | null;
   descriptionPositions: Record<string, Position>;
   pageAlignments: Record<number, PageAlignment>;
+  /** Asset-IDs, die aus dem Buch ausgeschlossen sind (bleiben in Immich). */
+  excludedAssetIds: string[];
 }
 
 /** Album-Konfiguration im neuen Format (V2). */
@@ -86,6 +88,8 @@ export interface AlbumConfigV2 extends GlobalConfig {
   overlayElements: Record<string, PageElement[]>;
   /** Kanonische Bildbeschriftungen je assetId (migriert aus descriptionPositions). */
   imageCaptions: Record<string, StoredImageCaption>;
+  /** Asset-IDs, die aus dem Buch ausgeschlossen sind (bleiben in Immich). */
+  excludedAssetIds: string[];
 }
 
 /**
@@ -264,6 +268,7 @@ export function saveAlbumConfig(
       pageAlignments: config.pageAlignments ?? {},
       overlayElements: config.overlayElements ?? {},
       imageCaptions,
+      excludedAssetIds: config.excludedAssetIds ?? [],
     };
 
     localStorage.setItem(albumKey(albumId), JSON.stringify(v2));
