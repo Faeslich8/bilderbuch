@@ -38,8 +38,10 @@ import {
 import {
   createImageElement,
   isImageElement,
+  type ImageElement,
   type PageElement,
 } from "../types/pageElement";
+import Moveable from "react-moveable";
 import type { ImmichConfig } from "./ConnectionForm";
 import roboto400 from "@fontsource/roboto/files/roboto-latin-400-normal.woff?url";
 import roboto500 from "@fontsource/roboto/files/roboto-latin-500-normal.woff?url";
@@ -187,6 +189,14 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     }
     return ids;
   }, [overlayElements]);
+
+  // Phase 3: which overlay element is selected, and the DOM target for its handles.
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(
+    null,
+  );
+  const [moveableTarget, setMoveableTarget] = useState<HTMLElement | null>(
+    null,
+  );
 
   // Update page dimensions when size or orientation changes
   useEffect(() => {
@@ -432,16 +442,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
   // Calculate unified page layout - single source of truth!
   const pages = useMemo(() => {
-    // Phase 3: assets "unlocked" into free manual overlay elements leave the auto
-    // layout so they don't render twice.
-    const layoutAssets = filteredAssets.filter(
-      (a) => !manualizedAssetIds.has(a.id),
-    );
-
     // Adjust aspect ratios for assets with left/right description positions
     const adjustedAspectRatios = new Map(customAspectRatios);
 
-    layoutAssets.forEach((asset) => {
+    filteredAssets.forEach((asset) => {
       const descPosition = descriptionPositions.get(asset.id) || "bottom";
       const hasDescription = showDescriptions && !!asset.exifInfo?.description;
 
@@ -467,7 +471,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       }
     });
 
-    return calculatePageLayout(layoutAssets, {
+    return calculatePageLayout(filteredAssets, {
       pageSize: "CUSTOM",
       orientation: "portrait",
       margin: validMargin,
@@ -481,7 +485,6 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     });
   }, [
     filteredAssets,
-    manualizedAssetIds,
     validMargin,
     validRowHeight,
     validSpacing,
@@ -493,6 +496,35 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     showDescriptions,
     pageAlignments,
   ]);
+
+  // Phase 3: resolve the DOM target for the Moveable handles (selected overlay element).
+  useEffect(() => {
+    if (mode !== "preview" || !selectedElementId) {
+      setMoveableTarget(null);
+      return;
+    }
+    setMoveableTarget(
+      document.querySelector(
+        `[data-overlay-id="${selectedElementId}"]`,
+      ) as HTMLElement | null,
+    );
+  }, [selectedElementId, mode, pages, overlayElements]);
+
+  // Phase 3: patch a manual overlay element by id (used by the Moveable handlers).
+  const updateOverlayElement = (
+    id: string,
+    patch: (el: ImageElement) => Partial<ImageElement>,
+  ) => {
+    setOverlayElements((prev) => {
+      const next: Record<string, PageElement[]> = {};
+      for (const [pageId, els] of Object.entries(prev)) {
+        next[pageId] = els.map((el) =>
+          el.id === id && isImageElement(el) ? { ...el, ...patch(el) } : el,
+        );
+      }
+      return next;
+    });
+  };
 
   // Handle aspect ratio drag
   useEffect(() => {
@@ -963,6 +995,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     )}
 
                     {pageData.photos.map((photoBox) => {
+                      // Phase 3: a "freed" image keeps its layout slot but its auto
+                      // image is hidden; the manual overlay copy is what shows.
+                      if (manualizedAssetIds.has(photoBox.asset.id)) return null;
                       const imageUrl = `${immichConfig.baseUrl}/assets/${photoBox.asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`;
                       const descPosition =
                         descriptionPositions.get(photoBox.asset.id) || "bottom";
@@ -1293,6 +1328,23 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     // the container keeps the full width, the renderer splits image vs. caption.
                     const containerWidth = toPoints(photoBox.width);
 
+                    // Phase 3: a "freed" image keeps its slot (an empty dashed
+                    // placeholder); the manual overlay copy is what shows + moves.
+                    if (manualizedAssetIds.has(photoBox.asset.id)) {
+                      return (
+                        <div
+                          key={photoBox.asset.id}
+                          className="absolute border border-dashed border-gray-300"
+                          style={{
+                            left: `${toPoints(photoBox.x)}px`,
+                            top: `${toPoints(photoBox.y)}px`,
+                            width: `${containerWidth}px`,
+                            height: `${toPoints(photoBox.height)}px`,
+                          }}
+                        />
+                      );
+                    }
+
                     return (
                       <div
                         key={photoBox.asset.id}
@@ -1486,8 +1538,17 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     .map((el) => (
                       <div
                         key={el.id}
-                        className="absolute overflow-hidden"
+                        data-overlay-id={el.id}
+                        className={`absolute overflow-hidden cursor-move ${
+                          selectedElementId === el.id
+                            ? "outline outline-2 outline-blue-500"
+                            : ""
+                        }`}
                         style={elementBoxStyle(el)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedElementId(el.id);
+                        }}
                       >
                         <WebElement
                           element={el}
@@ -1503,6 +1564,45 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               </div>
             );
           })}
+
+          {moveableTarget && (
+            <Moveable
+              target={moveableTarget}
+              draggable
+              resizable
+              rotatable
+              origin={false}
+              throttleDrag={0}
+              throttleResize={0}
+              throttleRotate={0}
+              onDrag={(e) => {
+                if (!selectedElementId) return;
+                updateOverlayElement(selectedElementId, (el) => ({
+                  x: el.x + screenToLayoutPx(e.delta[0]),
+                  y: el.y + screenToLayoutPx(e.delta[1]),
+                }));
+              }}
+              onResize={(e) => {
+                if (!selectedElementId) return;
+                updateOverlayElement(selectedElementId, (el) => {
+                  const dw = screenToLayoutPx(e.delta[0]);
+                  const dh = screenToLayoutPx(e.delta[1]);
+                  return {
+                    width: Math.max(40, el.width + dw),
+                    height: Math.max(40, el.height + dh),
+                    x: e.direction[0] === -1 ? el.x - dw : el.x,
+                    y: e.direction[1] === -1 ? el.y - dh : el.y,
+                  };
+                });
+              }}
+              onRotate={(e) => {
+                if (!selectedElementId) return;
+                updateOverlayElement(selectedElementId, (el) => ({
+                  rotation: el.rotation + e.delta,
+                }));
+              }}
+            />
+          )}
         </div>
       )}
     </div>
