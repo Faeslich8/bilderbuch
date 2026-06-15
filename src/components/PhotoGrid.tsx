@@ -27,7 +27,9 @@ import {
 import { toPoints, screenToLayoutPx } from "../utils/units";
 import {
   PdfElement,
+  PdfTextElement,
   WebElement,
+  WebTextElement,
   createDynamicStyles,
   createWebStyles,
   elementBoxStyle,
@@ -35,9 +37,12 @@ import {
 import { photoBoxToImageElement } from "../utils/photoBoxToElement";
 import {
   createImageElement,
+  createTextElement,
   isImageElement,
-  type ImageElement,
+  isTextElement,
+  type BaseElement,
   type PageElement,
+  type TextElement,
 } from "../types/pageElement";
 import Moveable from "react-moveable";
 import type { ImmichConfig } from "./ConnectionForm";
@@ -512,6 +517,25 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     setShowImagePicker(false);
   };
 
+  // Phase 5: place a free text field (centered on page 1, then editable/movable).
+  const handleInsertText = () => {
+    const width = 1200;
+    const height = 320;
+    const el = createTextElement({
+      x: Math.round((validPageWidth - width) / 2),
+      y: Math.round((validPageHeight - height) / 2),
+      width,
+      height,
+      fontSize: 36,
+      text: "",
+    });
+    setOverlayElements((prev) => ({
+      ...prev,
+      ["1"]: [...(prev["1"] ?? []), el],
+    }));
+    setSelectedElementId(el.id);
+  };
+
   // Calculate content width for snapping
   const contentWidth = useMemo(() => {
     return validPageWidth - validMargin * 2;
@@ -594,21 +618,45 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     );
   }, [selectedElementId, mode, pages, overlayElements]);
 
-  // Phase 3: patch a manual overlay element by id (used by the Moveable handlers).
+  // Phase 3/5: patch the GEOMETRY (base props) of any overlay element by id
+  // (used by the Moveable handlers + z-index — works for image and text).
   const updateOverlayElement = (
     id: string,
-    patch: (el: ImageElement) => Partial<ImageElement>,
+    patch: (el: PageElement) => Partial<BaseElement>,
   ) => {
     setOverlayElements((prev) => {
       const next: Record<string, PageElement[]> = {};
       for (const [pageId, els] of Object.entries(prev)) {
         next[pageId] = els.map((el) =>
-          el.id === id && isImageElement(el) ? { ...el, ...patch(el) } : el,
+          el.id === id ? ({ ...el, ...patch(el) } as PageElement) : el,
         );
       }
       return next;
     });
   };
+
+  // Phase 5: patch a TEXT element's own fields (content, font, color, align).
+  const updateTextElement = (
+    id: string,
+    patch: (el: TextElement) => Partial<TextElement>,
+  ) => {
+    setOverlayElements((prev) => {
+      const next: Record<string, PageElement[]> = {};
+      for (const [pageId, els] of Object.entries(prev)) {
+        next[pageId] = els.map((el) =>
+          el.id === id && isTextElement(el) ? { ...el, ...patch(el) } : el,
+        );
+      }
+      return next;
+    });
+  };
+
+  // Currently selected overlay element (for the type-aware toolbar).
+  const selectedElement: PageElement | null = selectedElementId
+    ? (Object.values(overlayElements)
+        .flat()
+        .find((e) => e.id === selectedElementId) ?? null)
+    : null;
 
   // Phase 3: z-index — bring the selected overlay element to front / send to back.
   const handleBringToFront = (id: string) => {
@@ -802,6 +850,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 title="Ein Album-Bild frei auf der Seite platzieren"
               >
                 + Bild einfügen
+              </button>
+            )}
+            {mode === "preview" && (
+              <button
+                onClick={handleInsertText}
+                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm text-sm"
+                title="Freies Textfeld einfügen"
+              >
+                + Text einfügen
               </button>
             )}
             {excludedAssetIds.size > 0 && (
@@ -1259,19 +1316,22 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         />
                       );
                     })}
-                    {(overlayElements[String(pageData.pageNumber)] ?? [])
-                      .filter(isImageElement)
-                      .map((el) => (
-                        <PdfElement
-                          key={el.id}
-                          element={el}
-                          ctx={{
-                            imageUrl: `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
-                            descPosition: "bottom",
-                            styles: pdfStyles,
-                          }}
-                        />
-                      ))}
+                    {(overlayElements[String(pageData.pageNumber)] ?? []).map(
+                      (el) =>
+                        isImageElement(el) ? (
+                          <PdfElement
+                            key={el.id}
+                            element={el}
+                            ctx={{
+                              imageUrl: `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
+                              descPosition: "bottom",
+                              styles: pdfStyles,
+                            }}
+                          />
+                        ) : isTextElement(el) ? (
+                          <PdfTextElement key={el.id} element={el} />
+                        ) : null,
+                    )}
                   </Page>
                 );
               })}
@@ -1289,15 +1349,79 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded border border-gray-300 bg-white/95 px-3 py-1.5 shadow-lg"
               onClick={(e) => e.stopPropagation()}
             >
-              <span className="text-xs text-gray-600">
-                Freies Element ausgewählt
-              </span>
-              <button
-                onClick={() => refixElement(selectedElementId)}
-                className="text-xs px-2 py-0.5 bg-gray-700 hover:bg-gray-900 text-white rounded"
-              >
-                Fixieren (Lösen rückgängig)
-              </button>
+              {selectedElement && isTextElement(selectedElement) ? (
+                <>
+                  <input
+                    type="text"
+                    value={selectedElement.text}
+                    onChange={(e) =>
+                      updateTextElement(selectedElementId, () => ({
+                        text: e.target.value,
+                      }))
+                    }
+                    placeholder="Text eingeben…"
+                    className="text-xs border border-gray-300 rounded px-1 py-0.5 w-44"
+                  />
+                  <input
+                    type="number"
+                    value={selectedElement.fontSize}
+                    min={6}
+                    onChange={(e) =>
+                      updateTextElement(selectedElementId, () => ({
+                        fontSize: Math.max(6, Number(e.target.value) || 24),
+                      }))
+                    }
+                    className="text-xs border border-gray-300 rounded px-1 py-0.5 w-14"
+                    title="Schriftgröße"
+                  />
+                  <input
+                    type="color"
+                    value={selectedElement.color}
+                    onChange={(e) =>
+                      updateTextElement(selectedElementId, () => ({
+                        color: e.target.value,
+                      }))
+                    }
+                    title="Textfarbe"
+                    className="h-6 w-8 cursor-pointer"
+                  />
+                  {(["left", "center", "right"] as const).map((a) => (
+                    <button
+                      key={a}
+                      onClick={() =>
+                        updateTextElement(selectedElementId, () => ({ align: a }))
+                      }
+                      className={`text-xs px-2 py-0.5 rounded border ${
+                        selectedElement.align === a
+                          ? "bg-blue-500 text-white border-blue-500"
+                          : "bg-white border-gray-300 hover:bg-gray-50"
+                      }`}
+                      title={`Ausrichtung ${a}`}
+                    >
+                      {a === "left" ? "L" : a === "center" ? "Z" : "R"}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => refixElement(selectedElementId)}
+                    className="text-xs px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded"
+                    title="Textfeld entfernen"
+                  >
+                    Entfernen
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="text-xs text-gray-600">
+                    Freies Element ausgewählt
+                  </span>
+                  <button
+                    onClick={() => refixElement(selectedElementId)}
+                    className="text-xs px-2 py-0.5 bg-gray-700 hover:bg-gray-900 text-white rounded"
+                  >
+                    Fixieren (Lösen rückgängig)
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => handleBringToFront(selectedElementId)}
                 className="text-xs px-2 py-0.5 bg-white border border-gray-300 hover:bg-gray-50 rounded"
@@ -1869,9 +1993,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   })}
 
                   {/* Phase 3: free overlay elements, rendered above the auto layout */}
-                  {(overlayElements[String(page.pageNumber)] ?? [])
-                    .filter(isImageElement)
-                    .map((el) => (
+                  {(overlayElements[String(page.pageNumber)] ?? []).map((el) => (
                       <div
                         key={el.id}
                         data-overlay-id={el.id}
@@ -1886,14 +2008,18 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           setSelectedElementId(el.id);
                         }}
                       >
-                        <WebElement
-                          element={el}
-                          ctx={{
-                            imageUrl: `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
-                            descPosition: "bottom",
-                            styles: webStyles,
-                          }}
-                        />
+                        {isImageElement(el) ? (
+                          <WebElement
+                            element={el}
+                            ctx={{
+                              imageUrl: `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
+                              descPosition: "bottom",
+                              styles: webStyles,
+                            }}
+                          />
+                        ) : isTextElement(el) ? (
+                          <WebTextElement element={el} />
+                        ) : null}
                       </div>
                     ))}
                 </div>
