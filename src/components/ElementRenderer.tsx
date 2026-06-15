@@ -297,6 +297,28 @@ export function PdfElement({
             {description}
           </Text>
         )}
+
+      {/* Bildbeschriftung (Phase 6) */}
+      {element.caption && element.caption.text.trim().length > 0 && (
+        <Text
+          hyphenationCallback={(word) => [word]}
+          style={{
+            ...styles.descriptionOverlay,
+            position: "absolute",
+            ...(element.caption.position === "above" ||
+            element.caption.position === "overlay-top"
+              ? { top: 0 }
+              : { bottom: 0 }),
+            left: 0,
+            right: 0,
+            fontSize: element.caption.fontSize,
+            color: element.caption.color,
+            textAlign: element.caption.align,
+          }}
+        >
+          {element.caption.text}
+        </Text>
+      )}
     </View>
   );
 }
@@ -395,6 +417,26 @@ export function WebElement({
           title="Click to change position"
         >
           {description}
+        </div>
+      )}
+
+      {/* Bildbeschriftung (Phase 6) */}
+      {element.caption && element.caption.text.trim().length > 0 && (
+        <div
+          className={`absolute left-0 right-0 bg-white/70 text-black z-10 ${
+            element.caption.position === "above" ||
+            element.caption.position === "overlay-top"
+              ? "top-0"
+              : "bottom-0"
+          }`}
+          style={{
+            padding: 4,
+            fontSize: `${element.caption.fontSize}px`,
+            color: element.caption.color,
+            textAlign: element.caption.align,
+          }}
+        >
+          {element.caption.text}
         </div>
       )}
     </>

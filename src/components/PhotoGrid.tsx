@@ -41,6 +41,7 @@ import {
   isImageElement,
   isTextElement,
   type BaseElement,
+  type ImageElement,
   type PageElement,
   type TextElement,
 } from "../types/pageElement";
@@ -645,6 +646,22 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       for (const [pageId, els] of Object.entries(prev)) {
         next[pageId] = els.map((el) =>
           el.id === id && isTextElement(el) ? { ...el, ...patch(el) } : el,
+        );
+      }
+      return next;
+    });
+  };
+
+  // Phase 6: patch an IMAGE element's own fields (e.g. caption).
+  const updateImageElement = (
+    id: string,
+    patch: (el: ImageElement) => Partial<ImageElement>,
+  ) => {
+    setOverlayElements((prev) => {
+      const next: Record<string, PageElement[]> = {};
+      for (const [pageId, els] of Object.entries(prev)) {
+        next[pageId] = els.map((el) =>
+          el.id === id && isImageElement(el) ? { ...el, ...patch(el) } : el,
         );
       }
       return next;
@@ -1411,9 +1428,60 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 </>
               ) : (
                 <>
-                  <span className="text-xs text-gray-600">
-                    Freies Element ausgewählt
-                  </span>
+                  <span className="text-xs text-gray-600">Bild</span>
+                  <input
+                    type="text"
+                    value={
+                      selectedElement && isImageElement(selectedElement)
+                        ? (selectedElement.caption?.text ?? "")
+                        : ""
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      updateImageElement(selectedElementId, (el) => ({
+                        caption:
+                          v.trim().length === 0
+                            ? undefined
+                            : {
+                                text: v,
+                                position:
+                                  el.caption?.position ?? "overlay-bottom",
+                                fontSize: el.caption?.fontSize ?? 28,
+                                color: el.caption?.color ?? "#000000",
+                                align: el.caption?.align ?? "center",
+                              },
+                      }));
+                    }}
+                    placeholder="Beschriftung…"
+                    className="text-xs border border-gray-300 rounded px-1 py-0.5 w-40"
+                  />
+                  <button
+                    onClick={() =>
+                      updateImageElement(selectedElementId, (el) =>
+                        el.caption
+                          ? {
+                              caption: {
+                                ...el.caption,
+                                position:
+                                  el.caption.position === "overlay-top" ||
+                                  el.caption.position === "above"
+                                    ? "overlay-bottom"
+                                    : "overlay-top",
+                              },
+                            }
+                          : {},
+                      )
+                    }
+                    className="text-xs px-2 py-0.5 bg-white border border-gray-300 hover:bg-gray-50 rounded"
+                    title="Beschriftung oben/unten"
+                  >
+                    {selectedElement &&
+                    isImageElement(selectedElement) &&
+                    (selectedElement.caption?.position === "overlay-top" ||
+                      selectedElement.caption?.position === "above")
+                      ? "↑ oben"
+                      : "↓ unten"}
+                  </button>
                   <button
                     onClick={() => refixElement(selectedElementId)}
                     className="text-xs px-2 py-0.5 bg-gray-700 hover:bg-gray-900 text-white rounded"
