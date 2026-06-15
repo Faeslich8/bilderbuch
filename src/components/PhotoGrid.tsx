@@ -217,6 +217,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     () => new Set(initialConfig.excludedAssetIds),
   );
   const [showExcludedPanel, setShowExcludedPanel] = useState(false);
+  const [showImagePicker, setShowImagePicker] = useState(false);
   const handleExcludeAsset = (id: string) =>
     setExcludedAssetIds((prev) => new Set(prev).add(id));
   const handleRestoreAsset = (id: string) =>
@@ -485,6 +486,30 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       next.delete(id);
       return next;
     });
+  };
+
+  // Phase 4: place an album image as a free element (centered on page 1, then movable).
+  const handleInsertImage = (asset: AssetResponseDto) => {
+    const naturalW = asset.exifInfo?.exifImageWidth || 1;
+    const naturalH = asset.exifInfo?.exifImageHeight || 1;
+    const ratio =
+      asset.exifInfo?.orientation === "6"
+        ? naturalH / naturalW
+        : naturalW / naturalH;
+    const width = 800;
+    const height = Math.max(1, Math.round(width / (ratio || 1)));
+    const el = createImageElement(asset.id, {
+      x: Math.round((validPageWidth - width) / 2),
+      y: Math.round((validPageHeight - height) / 2),
+      width,
+      height,
+    });
+    setOverlayElements((prev) => ({
+      ...prev,
+      ["1"]: [...(prev["1"] ?? []), el],
+    }));
+    setSelectedElementId(el.id);
+    setShowImagePicker(false);
   };
 
   // Calculate content width for snapping
@@ -768,6 +793,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 title="Leeren Gestaltungsraum einfügen (drückt Bilder weg)"
               >
                 + Leerraum
+              </button>
+            )}
+            {mode === "preview" && (
+              <button
+                onClick={() => setShowImagePicker((v) => !v)}
+                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm text-sm"
+                title="Ein Album-Bild frei auf der Seite platzieren"
+              >
+                + Bild einfügen
               </button>
             )}
             {excludedAssetIds.size > 0 && (
@@ -1077,6 +1111,41 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           )}
         </div>
       </div>
+
+      {showImagePicker && (
+        <div className="mb-6 p-3 bg-gray-50 border border-gray-300 rounded">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-700">
+              Bild einfügen — wird mittig auf Seite 1 frei platziert
+            </h3>
+            <button
+              onClick={() => setShowImagePicker(false)}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Schließen
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-3 max-h-64 overflow-y-auto">
+            {assets
+              .filter((a) => a.type === "IMAGE")
+              .map((asset) => (
+                <button
+                  key={asset.id}
+                  onClick={() => handleInsertImage(asset)}
+                  className="relative w-24 h-24 rounded border border-gray-300 overflow-hidden hover:ring-2 hover:ring-blue-500 transition"
+                  title="Frei einfügen"
+                >
+                  <img
+                    src={`${immichConfig.baseUrl}/assets/${asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`}
+                    alt={asset.originalFileName}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
 
       {showExcludedPanel && (
         <div className="mb-6 p-3 bg-gray-50 border border-gray-300 rounded">
