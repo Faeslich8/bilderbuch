@@ -585,6 +585,37 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     });
   };
 
+  // Phase 3: z-index — bring the selected overlay element to front / send to back.
+  const handleBringToFront = (id: string) => {
+    const zs = Object.values(overlayElements)
+      .flat()
+      .filter(isImageElement)
+      .map((el) => el.zIndex);
+    updateOverlayElement(id, () => ({
+      zIndex: (zs.length ? Math.max(...zs) : 0) + 1,
+    }));
+  };
+  const handleSendToBack = (id: string) => {
+    const zs = Object.values(overlayElements)
+      .flat()
+      .filter(isImageElement)
+      .map((el) => el.zIndex);
+    updateOverlayElement(id, () => ({
+      zIndex: (zs.length ? Math.min(...zs) : 0) - 1,
+    }));
+  };
+
+  // Phase 3: snap targets for the selected element — its page edges + sibling elements.
+  const snapElementGuidelines: HTMLElement[] = moveableTarget
+    ? [
+        moveableTarget.offsetParent,
+        ...Array.from(
+          moveableTarget.offsetParent?.querySelectorAll("[data-overlay-id]") ??
+            [],
+        ).filter((n) => n !== moveableTarget),
+      ].filter((n): n is HTMLElement => n instanceof HTMLElement)
+    : [];
+
   // Phase 3: re-fix a freed element (undo "Lösen") so its asset rejoins the auto layout.
   const refixElement = (id: string) => {
     setOverlayElements((prev) => {
@@ -1199,6 +1230,20 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 Fixieren (Lösen rückgängig)
               </button>
               <button
+                onClick={() => handleBringToFront(selectedElementId)}
+                className="text-xs px-2 py-0.5 bg-white border border-gray-300 hover:bg-gray-50 rounded"
+                title="Element nach vorne holen"
+              >
+                Nach vorne
+              </button>
+              <button
+                onClick={() => handleSendToBack(selectedElementId)}
+                className="text-xs px-2 py-0.5 bg-white border border-gray-300 hover:bg-gray-50 rounded"
+                title="Element nach hinten schicken"
+              >
+                Nach hinten
+              </button>
+              <button
                 onClick={() => setSelectedElementId(null)}
                 className="text-xs px-2 py-0.5 bg-white border border-gray-300 hover:bg-gray-50 rounded"
               >
@@ -1766,7 +1811,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             ? "outline outline-2 outline-blue-500"
                             : ""
                         }`}
-                        style={elementBoxStyle(el)}
+                        style={{ ...elementBoxStyle(el), zIndex: 40 + el.zIndex }}
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedElementId(el.id);
@@ -1794,6 +1839,25 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               draggable
               resizable
               rotatable
+              snappable
+              snapThreshold={8}
+              snapDirections={{
+                top: true,
+                left: true,
+                bottom: true,
+                right: true,
+                center: true,
+                middle: true,
+              }}
+              elementSnapDirections={{
+                top: true,
+                left: true,
+                bottom: true,
+                right: true,
+                center: true,
+                middle: true,
+              }}
+              elementGuidelines={snapElementGuidelines}
               origin={false}
               throttleDrag={0}
               throttleResize={0}
