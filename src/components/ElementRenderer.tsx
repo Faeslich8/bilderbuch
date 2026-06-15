@@ -14,7 +14,7 @@
  * caption-Feld des Modells erfolgt laut Plan erst in Phase 6.
  */
 import { View, Image, Text, StyleSheet } from "@react-pdf/renderer";
-import type { ImageElement } from "../types/pageElement";
+import type { ImageElement, TextElement } from "../types/pageElement";
 import type { Position } from "../utils/albumConfig";
 import { toPoints } from "../utils/units";
 
@@ -398,5 +398,65 @@ export function WebElement({
         </div>
       )}
     </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Text-Adapter (Phase 5).                                             */
+/* ------------------------------------------------------------------ */
+
+/** Web: sichtbarer Inhalt eines Textfelds (Container kommt aus PhotoGrid). */
+export function WebTextElement({ element }: { element: TextElement }) {
+  const hasText = element.text.trim().length > 0;
+  return (
+    <div
+      className="w-full h-full overflow-hidden"
+      style={{
+        fontFamily: element.fontFamily,
+        fontSize: `${element.fontSize}px`,
+        color: hasText ? element.color : "#9ca3af",
+        textAlign: element.align,
+        fontWeight: element.fontWeight,
+        fontStyle: element.italic ? "italic" : undefined,
+        backgroundColor: element.backgroundColor,
+        lineHeight: 1.25,
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+        padding: 4,
+      }}
+    >
+      {hasText ? element.text : "Text eingeben…"}
+    </div>
+  );
+}
+
+/** PDF: positioniertes Textfeld. Leerer Text wird NICHT exportiert. */
+export function PdfTextElement({ element }: { element: TextElement }) {
+  if (element.text.trim().length === 0) return null;
+  return (
+    <View
+      style={[
+        photoStaticStyles.photoContainer,
+        elementBoxStyle(element),
+        element.backgroundColor
+          ? { backgroundColor: element.backgroundColor }
+          : {},
+        { padding: 4 },
+      ]}
+    >
+      <Text
+        style={{
+          fontFamily: element.fontFamily,
+          fontSize: element.fontSize,
+          color: element.color,
+          textAlign: element.align,
+          ...(element.fontWeight ? { fontWeight: element.fontWeight } : {}),
+          ...(element.italic ? { fontStyle: "italic" as const } : {}),
+          lineHeight: 1.25,
+        }}
+      >
+        {element.text}
+      </Text>
+    </View>
   );
 }
