@@ -650,9 +650,7 @@ export function PdfEmojiElement({ element }: { element: EmojiElement }) {
         { alignItems: "center", justifyContent: "center" },
       ]}
     >
-      <Text style={{ fontFamily: "NotoEmoji", fontSize: size }}>
-        {element.emoji}
-      </Text>
+      <Text style={{ fontSize: size }}>{element.emoji}</Text>
     </View>
   );
 }

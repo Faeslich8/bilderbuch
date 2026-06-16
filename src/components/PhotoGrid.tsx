@@ -64,7 +64,6 @@ import Moveable from "react-moveable";
 import type { ImmichConfig } from "./ConnectionForm";
 import roboto400 from "@fontsource/roboto/files/roboto-latin-400-normal.woff?url";
 import roboto500 from "@fontsource/roboto/files/roboto-latin-500-normal.woff?url";
-import notoEmoji from "@fontsource/noto-emoji/files/noto-emoji-emoji-400-normal.woff?url";
 import Icon from "@mdi/react";
 import {
   mdiFormatAlignLeft,
@@ -82,11 +81,8 @@ Font.register({
   ],
 });
 
-// Local Noto Emoji (B&W) for emoji elements in the PDF — offline, no CDN.
-Font.register({
-  family: "NotoEmoji",
-  fonts: [{ src: notoEmoji }],
-});
+// Farb-Emoji im PDF über lokal gebündelte Twemoji-PNGs (offline, kein CDN zur Laufzeit).
+Font.registerEmojiSource({ format: "png", url: "/twemoji/" });
 
 interface PhotoGridProps {
   immichConfig: ImmichConfig;
