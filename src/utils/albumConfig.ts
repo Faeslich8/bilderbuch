@@ -30,6 +30,8 @@ const albumKey = (albumId: string) => `immich-book-config-${albumId}`;
 /** Alte Beschriftungs-Position (Legacy-Feld descriptionPositions). */
 export type Position = "bottom" | "top" | "left" | "right";
 export type PageAlignment = "left" | "center" | "right";
+/** Seitenhintergrund des ganzen Buchs. */
+export type PageBackground = "white" | "cream" | "darkbrown";
 
 /** Globale Standard-Einstellungen (identisch zum bisherigen Inline-Typ). */
 export interface GlobalConfig {
@@ -48,6 +50,8 @@ export interface GlobalConfig {
   showDates: boolean;
   showDescriptions: boolean;
   fontSize: number;
+  // Seitenhintergrund (ganzes Buch)
+  pageBackground: PageBackground;
 }
 
 /**
@@ -113,6 +117,7 @@ export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   showDates: true,
   showDescriptions: true,
   fontSize: 12,
+  pageBackground: "white",
 };
 
 /* ------------------------------------------------------------------ */
@@ -263,6 +268,7 @@ export function saveAlbumConfig(
       showDates: config.showDates,
       showDescriptions: config.showDescriptions,
       fontSize: config.fontSize,
+      pageBackground: config.pageBackground,
       customAspectRatios: config.customAspectRatios ?? {},
       customOrdering: config.customOrdering ?? null,
       pageAlignments: config.pageAlignments ?? {},
@@ -287,6 +293,7 @@ export function saveAlbumConfig(
       showDates: config.showDates,
       showDescriptions: config.showDescriptions,
       fontSize: config.fontSize,
+      pageBackground: config.pageBackground,
     });
   } catch (e) {
     console.error("Failed to save album config:", e);

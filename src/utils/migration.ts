@@ -119,6 +119,7 @@ function pickGlobal(
     showDates: pick("showDates", fallback.showDates),
     showDescriptions: pick("showDescriptions", fallback.showDescriptions),
     fontSize: pick("fontSize", fallback.fontSize),
+    pageBackground: pick("pageBackground", fallback.pageBackground),
   };
 }
 

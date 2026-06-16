@@ -12,6 +12,11 @@ import {
   View,
   StyleSheet,
   Font,
+  Svg,
+  Defs,
+  LinearGradient,
+  Stop,
+  Rect,
 } from "@react-pdf/renderer";
 import {
   calculatePageLayout,
@@ -23,6 +28,7 @@ import {
   saveAlbumConfig,
   type Position,
   type AlbumConfig,
+  type PageBackground,
 } from "../utils/albumConfig";
 import { toPoints, screenToLayoutPx } from "../utils/units";
 import {
@@ -106,6 +112,23 @@ const EMOJI_PALETTE = [
   "✨", "🔥", "🎉", "🎂", "🎁", "🌸", "🌈", "☀️",
   "🍀", "🐶", "🐱", "📷",
 ];
+
+// Seitenhintergrund-Farben (ganzes Buch, identisch in Web + PDF).
+const PAGE_BG: Record<PageBackground, string> = {
+  white: "#ffffff",
+  cream: "#f4ecd8",
+  darkbrown: "#3a2c22",
+};
+
+// Web-Hintergrund inkl. dezentem Pergament-Verlauf bei Creme.
+const webPageBackgroundStyle = (bg: PageBackground) =>
+  bg === "cream"
+    ? {
+        backgroundColor: PAGE_BG.cream,
+        backgroundImage:
+          "radial-gradient(circle at 22% 18%, rgba(124,94,46,0.06), transparent 55%), radial-gradient(circle at 82% 80%, rgba(124,94,46,0.07), transparent 55%)",
+      }
+    : { backgroundColor: PAGE_BG[bg] };
 const isBlocker = (id: string): boolean => id.startsWith(BLOCKER_PREFIX);
 
 // Placeholder asset so a blocker flows through calculatePageLayout. The 1:1 default
@@ -174,6 +197,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     initialConfig.showDescriptions,
   );
   const [fontSize, setFontSize] = useState(initialConfig.fontSize);
+  const [pageBackground, setPageBackground] = useState(
+    initialConfig.pageBackground,
+  );
 
   // Create dynamic styles based on current fontSize
   const pdfStyles = useMemo(() => createDynamicStyles(fontSize), [fontSize]);
@@ -303,6 +329,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       showDates,
       showDescriptions,
       fontSize,
+      pageBackground,
       customAspectRatios: Object.fromEntries(customAspectRatios),
       customOrdering,
       descriptionPositions: Object.fromEntries(descriptionPositions),
@@ -324,6 +351,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     showDates,
     showDescriptions,
     fontSize,
+    pageBackground,
     customAspectRatios,
     customOrdering,
     descriptionPositions,
@@ -1253,6 +1281,40 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             </div>
           </div>
 
+          {/* Seitenfarbe (ganzes Buch) */}
+          <div className="p-2 bg-stone-50 rounded border border-stone-300">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+              <h3 className="text-xs font-semibold text-stone-700 sm:w-28">
+                Seitenfarbe
+              </h3>
+              <div className="flex flex-wrap items-center gap-2">
+                {(
+                  [
+                    ["white", "Weiß"],
+                    ["cream", "Creme"],
+                    ["darkbrown", "Dunkelbraun"],
+                  ] as const
+                ).map(([val, label]) => (
+                  <button
+                    key={val}
+                    onClick={() => setPageBackground(val)}
+                    className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded border transition-colors ${
+                      pageBackground === val
+                        ? "border-primary-600 ring-1 ring-primary-600 text-stone-800"
+                        : "border-stone-300 text-stone-600 hover:bg-stone-100"
+                    }`}
+                  >
+                    <span
+                      className="w-4 h-4 rounded-sm border border-stone-300"
+                      style={webPageBackgroundStyle(val)}
+                    />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {/* 4. Customizations (only shown when there are any) */}
           {(customAspectRatios.size > 0 ||
             customOrdering !== null ||
@@ -1411,20 +1473,57 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       width: pageWidth,
                       height: pageHeight,
                     }}
-                    style={staticStyles.page}
+                    style={[
+                      staticStyles.page,
+                      { backgroundColor: PAGE_BG[pageBackground] },
+                    ]}
                   >
-                    {/* Page break indicator for combined pages */}
+                    {/* Falz/Bundsteg-Schattierung im Spread (3D-Effekt) */}
                     {combinePages && (
                       <View
                         style={{
                           position: "absolute",
-                          left: pageWidth / 2,
+                          left: pageWidth / 2 - 16,
                           top: 0,
-                          bottom: 0,
-                          width: 1,
-                          borderLeft: "1 dashed #D1D5DB",
+                          width: 32,
+                          height: pageHeight,
                         }}
-                      />
+                      >
+                        <Svg width={32} height={pageHeight}>
+                          <Defs>
+                            <LinearGradient
+                              id={`gutter-${pageData.pageNumber}`}
+                              x1="0"
+                              y1="0"
+                              x2="1"
+                              y2="0"
+                            >
+                              <Stop
+                                offset="0"
+                                stopColor="#000000"
+                                stopOpacity={0}
+                              />
+                              <Stop
+                                offset="0.5"
+                                stopColor="#000000"
+                                stopOpacity={0.16}
+                              />
+                              <Stop
+                                offset="1"
+                                stopColor="#000000"
+                                stopOpacity={0}
+                              />
+                            </LinearGradient>
+                          </Defs>
+                          <Rect
+                            x={0}
+                            y={0}
+                            width={32}
+                            height={pageHeight}
+                            fill={`url(#gutter-${pageData.pageNumber})`}
+                          />
+                        </Svg>
+                      </View>
                     )}
 
                     {pageData.photos.map((photoBox) => {
@@ -1930,17 +2029,23 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
                 {/* Page container */}
                 <div
-                  className="relative bg-white shadow-lg mx-auto border border-stone-200"
+                  className="relative shadow-lg mx-auto border border-stone-200"
                   style={{
                     width: `${displayWidth}px`,
                     height: `${displayHeight}px`,
+                    ...webPageBackgroundStyle(pageBackground),
                   }}
                 >
-                  {/* Page break indicator for combined pages */}
+                  {/* Falz/Bundsteg-Schattierung im Spread (3D-Effekt) */}
                   {combinePages && (
                     <div
-                      className="absolute top-0 bottom-0 border-l border-dashed border-stone-300 z-10 pointer-events-none"
-                      style={{ left: `${displayWidth / 2}px` }}
+                      className="absolute top-0 bottom-0 z-10 pointer-events-none"
+                      style={{
+                        left: `${displayWidth / 2 - 16}px`,
+                        width: "32px",
+                        background:
+                          "linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,0.07) 38%, rgba(0,0,0,0.17) 50%, rgba(0,0,0,0.07) 62%, rgba(0,0,0,0) 100%)",
+                      }}
                     />
                   )}
 
