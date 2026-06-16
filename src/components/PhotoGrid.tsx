@@ -117,7 +117,7 @@ const EMOJI_PALETTE = [
 const PAGE_BG: Record<PageBackground, string> = {
   white: "#ffffff",
   cream: "#f4ecd8",
-  darkbrown: "#3a2c22",
+  darkbrown: "#2a1b0f",
 };
 
 // Web-Hintergrund inkl. dezentem Pergament-Verlauf bei Creme.
@@ -129,6 +129,10 @@ const webPageBackgroundStyle = (bg: PageBackground) =>
           "radial-gradient(circle at 22% 18%, rgba(124,94,46,0.06), transparent 55%), radial-gradient(circle at 82% 80%, rgba(124,94,46,0.07), transparent 55%)",
       }
     : { backgroundColor: PAGE_BG[bg] };
+
+// Seitenmaße-Eingabe in cm (intern px @ 300 DPI).
+const pxToCm = (px: number) => Math.round((px / 300) * 2.54 * 10) / 10;
+const cmToPx = (cm: number) => Math.round((cm / 2.54) * 300);
 const isBlocker = (id: string): boolean => id.startsWith(BLOCKER_PREFIX);
 
 // Placeholder asset so a blocker flows through calculatePageLayout. The 1:1 default
@@ -269,6 +273,13 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   );
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [widthCmInput, setWidthCmInput] = useState(
+    String(pxToCm(initialConfig.pageWidth)),
+  );
+  const [heightCmInput, setHeightCmInput] = useState(
+    String(pxToCm(initialConfig.pageHeight)),
+  );
 
   // Images removed from the book (kept in Immich); plus the restore-panel toggle.
   const [excludedAssetIds, setExcludedAssetIds] = useState<Set<string>>(
@@ -695,7 +706,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
   // Phase 3: resolve the DOM target for the Moveable handles (selected overlay element).
   useEffect(() => {
-    if (mode !== "preview" || !selectedElementId) {
+    if (mode !== "preview" || !selectedElementId || editingTextId) {
       setMoveableTarget(null);
       return;
     }
@@ -704,7 +715,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
         `[data-overlay-id="${selectedElementId}"]`,
       ) as HTMLElement | null,
     );
-  }, [selectedElementId, mode, pages, overlayElements]);
+  }, [selectedElementId, mode, pages, overlayElements, editingTextId]);
 
   // Phase 3/5: patch the GEOMETRY (base props) of any overlay element by id
   // (used by the Moveable handlers + z-index — works for image and text).
@@ -1000,16 +1011,21 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   + Emoji
                 </button>
                 {emojiPickerOpen && (
-                  <div className="absolute z-50 mt-1 grid grid-cols-8 gap-1 rounded-lg border border-stone-300 bg-white p-2 shadow-lg">
-                    {EMOJI_PALETTE.map((em) => (
-                      <button
-                        key={em}
-                        onClick={() => handleInsertEmoji(em)}
-                        className="h-8 w-8 rounded hover:bg-stone-100 text-xl leading-none"
-                      >
-                        {em}
-                      </button>
-                    ))}
+                  <div className="absolute z-50 mt-1 w-80 rounded-lg border border-stone-300 bg-white p-3 shadow-xl">
+                    <p className="mb-2 text-xs font-medium text-stone-500">
+                      Emoji wählen
+                    </p>
+                    <div className="grid grid-cols-7 gap-1.5">
+                      {EMOJI_PALETTE.map((em) => (
+                        <button
+                          key={em}
+                          onClick={() => handleInsertEmoji(em)}
+                          className="flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100 text-2xl leading-none transition-colors"
+                        >
+                          {em}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1055,7 +1071,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           <div className="p-2 bg-stone-50 rounded border border-stone-300">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
               <h3 className="text-xs font-semibold text-stone-700 sm:w-28">
-                Seite (px)
+                Seite (cm)
               </h3>
               <div className="flex flex-wrap items-center gap-2 sm:gap-1">
                 <div className="flex items-center gap-1">
@@ -1065,15 +1081,17 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   <input
                     type="number"
                     id="pageWidth"
-                    value={pageWidth}
+                    value={widthCmInput}
                     onChange={(e) => {
-                      const value = Number(e.target.value);
-                      if (!isNaN(value)) {
-                        setPageWidth(value);
+                      setWidthCmInput(e.target.value);
+                      const cm = Number(e.target.value);
+                      if (!isNaN(cm) && cm > 0) {
+                        setPageWidth(cmToPx(cm));
                       }
                     }}
-                    min="1000"
-                    max="10000"
+                    min="8"
+                    max="85"
+                    step="0.1"
                     className={`px-1 py-0.5 w-16 text-xs border rounded ${
                       isPageWidthValid
                         ? "border-stone-300"
@@ -1088,15 +1106,17 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   <input
                     type="number"
                     id="pageHeight"
-                    value={pageHeight}
+                    value={heightCmInput}
                     onChange={(e) => {
-                      const value = Number(e.target.value);
-                      if (!isNaN(value)) {
-                        setPageHeight(value);
+                      setHeightCmInput(e.target.value);
+                      const cm = Number(e.target.value);
+                      if (!isNaN(cm) && cm > 0) {
+                        setPageHeight(cmToPx(cm));
                       }
                     }}
-                    min="1000"
-                    max="10000"
+                    min="8"
+                    max="85"
+                    step="0.1"
                     className={`px-1 py-0.5 w-16 text-xs border rounded ${
                       isPageHeightValid
                         ? "border-stone-300"
@@ -2391,6 +2411,13 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           e.stopPropagation();
                           setSelectedElementId(el.id);
                         }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          if (isTextElement(el)) {
+                            setSelectedElementId(el.id);
+                            setEditingTextId(el.id);
+                          }
+                        }}
                       >
                         {isImageElement(el) ? (
                           <WebElement
@@ -2402,7 +2429,36 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             }}
                           />
                         ) : isTextElement(el) ? (
-                          <WebTextElement element={el} />
+                          editingTextId === el.id ? (
+                            <textarea
+                              autoFocus
+                              value={el.text}
+                              onChange={(ev) =>
+                                updateTextElement(el.id, () => ({
+                                  text: ev.target.value,
+                                }))
+                              }
+                              onBlur={() => setEditingTextId(null)}
+                              onKeyDown={(ev) => {
+                                if (ev.key === "Escape")
+                                  (ev.target as HTMLTextAreaElement).blur();
+                              }}
+                              onClick={(ev) => ev.stopPropagation()}
+                              className="w-full h-full resize-none border-0 outline-none bg-transparent overflow-hidden"
+                              style={{
+                                fontFamily: el.fontFamily,
+                                fontSize: `${el.fontSize}px`,
+                                color: el.color,
+                                textAlign: el.align,
+                                fontWeight: el.fontWeight,
+                                fontStyle: el.italic ? "italic" : undefined,
+                                lineHeight: 1.25,
+                                padding: 4,
+                              }}
+                            />
+                          ) : (
+                            <WebTextElement element={el} />
+                          )
                         ) : isShapeElement(el) ? (
                           <WebShapeElement element={el} />
                         ) : isEmojiElement(el) ? (
