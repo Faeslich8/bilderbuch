@@ -129,6 +129,40 @@ const webPageBackgroundStyle = (bg: PageBackground) =>
 // Seitenmaße-Eingabe in cm (intern px @ 300 DPI).
 const pxToCm = (px: number) => Math.round((px / 300) * 2.54 * 10) / 10;
 const cmToPx = (cm: number) => Math.round((cm / 2.54) * 300);
+
+// Externe Bilddatei -> herunterskalierte Data-URL (für lokale Einbettung im Buch).
+async function fileToImageElementData(
+  file: File,
+  maxEdge = 1600,
+): Promise<{ src: string; width: number; height: number } | null> {
+  if (!file.type.startsWith("image/")) return null;
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result as string);
+    fr.onerror = () => reject(fr.error);
+    fr.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error("Bild konnte nicht gelesen werden"));
+    i.src = dataUrl;
+  });
+  const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return { src: dataUrl, width: img.width, height: img.height };
+  ctx.drawImage(img, 0, 0, w, h);
+  return {
+    src: canvas.toDataURL("image/jpeg", 0.85),
+    width: img.width,
+    height: img.height,
+  };
+}
 const isBlocker = (id: string): boolean => id.startsWith(BLOCKER_PREFIX);
 
 // Placeholder asset so a blocker flows through calculatePageLayout. The 1:1 default
@@ -270,6 +304,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [widthCmInput, setWidthCmInput] = useState(
     String(pxToCm(initialConfig.pageWidth)),
   );
@@ -578,6 +613,38 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       ["1"]: [...(prev["1"] ?? []), el],
     }));
     setSelectedElementId(el.id);
+    setShowImagePicker(false);
+  };
+
+  // Externe Bilddateien (Upload oder Drag & Drop) als freie Bild-Elemente einfügen.
+  const handleInsertImageFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    for (const file of list) {
+      let data: { src: string; width: number; height: number } | null = null;
+      try {
+        data = await fileToImageElementData(file);
+      } catch {
+        data = null;
+      }
+      if (!data) continue;
+      const aspect = data.width / data.height || 1;
+      const targetW = Math.round(validPageWidth * 0.5);
+      const targetH = Math.max(1, Math.round(targetW / aspect));
+      const el = createImageElement(crypto.randomUUID(), {
+        src: data.src,
+        x: Math.round((validPageWidth - targetW) / 2),
+        y: Math.round((validPageHeight - targetH) / 2),
+        width: targetW,
+        height: targetH,
+        source: "manual",
+        lockAspectRatio: true,
+      });
+      setOverlayElements((prev) => ({
+        ...prev,
+        ["1"]: [...(prev["1"] ?? []), el],
+      }));
+      setSelectedElementId(el.id);
+    }
     setShowImagePicker(false);
   };
 
@@ -927,7 +994,31 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   }
 
   return (
-    <div>
+    <div
+      onDragOver={(e) => {
+        if (mode !== "preview") return;
+        e.preventDefault();
+        setIsDraggingFile(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setIsDraggingFile(false);
+      }}
+      onDrop={(e) => {
+        if (mode !== "preview") return;
+        e.preventDefault();
+        setIsDraggingFile(false);
+        if (e.dataTransfer.files?.length) {
+          handleInsertImageFiles(e.dataTransfer.files);
+        }
+      }}
+    >
+      {isDraggingFile && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-primary-600/10 border-4 border-dashed border-primary-600">
+          <span className="rounded-lg bg-white/90 px-4 py-2 text-sm font-medium text-stone-700 shadow">
+            Bild hier ablegen
+          </span>
+        </div>
+      )}
       {/* Controls */}
       <div className="mb-6 flex flex-col lg:flex-row flex-1 items-start lg:justify-between gap-4 lg:gap-8">
         <div className="w-full lg:w-auto">
@@ -1396,14 +1487,29 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
         <div className="mb-6 p-3 bg-stone-50 border border-stone-300 rounded">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-stone-700">
-              Bild einfügen — wird mittig auf Seite 1 frei platziert
+              Bild platzieren — Album-Bild wählen oder eigene Datei laden
             </h3>
-            <button
-              onClick={() => setShowImagePicker(false)}
-              className="text-xs text-stone-500 hover:text-stone-700"
-            >
-              Schließen
-            </button>
+            <div className="flex items-center gap-3">
+              <label className="text-xs px-2 py-1 bg-primary-600 hover:bg-primary-700 text-white rounded cursor-pointer transition-colors">
+                Eigene Datei…
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files) handleInsertImageFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <button
+                onClick={() => setShowImagePicker(false)}
+                className="text-xs text-stone-500 hover:text-stone-700"
+              >
+                Schließen
+              </button>
+            </div>
           </div>
           <div className="flex flex-wrap gap-3 max-h-64 overflow-y-auto">
             {assets
@@ -1583,7 +1689,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             key={el.id}
                             element={el}
                             ctx={{
-                              imageUrl: `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
+                              imageUrl:
+                                el.src ??
+                                `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
                               descPosition: "bottom",
                               styles: pdfStyles,
                             }}
@@ -2419,7 +2527,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           <WebElement
                             element={el}
                             ctx={{
-                              imageUrl: `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
+                              imageUrl:
+                                el.src ??
+                                `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
                               descPosition: "bottom",
                               styles: webStyles,
                             }}

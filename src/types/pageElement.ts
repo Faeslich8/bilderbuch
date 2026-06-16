@@ -59,6 +59,8 @@ export interface ImageElement extends BaseElement {
   type: "image";
   /** Immich-Asset-ID. */
   assetId: string;
+  /** Externe Bildquelle (Data-URL); wenn gesetzt, ersetzt sie die Immich-Asset-URL. */
+  src?: string;
   objectFit?: "cover" | "contain";
   /** Seitenverhältnis beim Skalieren sperren (Phase 4). */
   lockAspectRatio?: boolean;
