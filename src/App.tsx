@@ -120,9 +120,9 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Immich Book</h1>
-              <p className="text-sm text-gray-500">
-                Create photo books from your Immich albums
+              <h1 className="text-2xl font-bold text-stone-900">Immich Book</h1>
+              <p className="text-sm text-stone-500">
+                Fotobücher aus deinen Immich-Alben erstellen
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -130,8 +130,8 @@ function App() {
                 href="https://github.com/ch1bo/immich-book"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
-                title="View on GitHub"
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-stone-700 hover:text-stone-900 transition-colors"
+                title="Auf GitHub ansehen"
               >
                 <svg
                   className="w-5 h-5"
@@ -149,9 +149,9 @@ function App() {
               {immichConfig && (
                 <button
                   onClick={handleDisconnect}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+                  className="px-4 py-2 text-sm font-medium text-stone-700 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors shadow-sm"
                 >
-                  Disconnect
+                  Trennen
                 </button>
               )}
             </div>
@@ -165,8 +165,8 @@ function App() {
           <ConnectionForm onConnect={handleConnect} />
         ) : isLoadingAlbum ? (
           <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            <p className="mt-4 text-gray-600">Loading album...</p>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-stone-900"></div>
+            <p className="mt-4 text-stone-600">Album wird geladen…</p>
           </div>
         ) : !selectedAlbum ? (
           <AlbumSelector

@@ -47,7 +47,7 @@ function AlbumSelector({ immichConfig, onSelectAlbum }: AlbumSelectorProps) {
       setAlbums(uniqueAlbums);
     } catch (err) {
       const error = err as any;
-      let errorMessage = error.message || "Failed to load albums";
+      let errorMessage = error.message || "Alben konnten nicht geladen werden";
 
       // Check if it's a 401 Unauthorized error
       if (
@@ -55,7 +55,7 @@ function AlbumSelector({ immichConfig, onSelectAlbum }: AlbumSelectorProps) {
         errorMessage.includes("401") ||
         errorMessage.includes("Unauthorized")
       ) {
-        errorMessage = `Authentication failed: ${errorMessage}\n\nYour API key may have been revoked or expired. Please reconnect with a valid API key.`;
+        errorMessage = `Authentifizierung fehlgeschlagen: ${errorMessage}\n\nDein API-Schlüssel wurde womöglich widerrufen oder ist abgelaufen. Bitte mit einem gültigen Schlüssel neu verbinden.`;
       }
 
       setError(errorMessage);
@@ -67,8 +67,8 @@ function AlbumSelector({ immichConfig, onSelectAlbum }: AlbumSelectorProps) {
   if (isLoading) {
     return (
       <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        <p className="mt-4 text-gray-600">Loading albums...</p>
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-stone-900"></div>
+        <p className="mt-4 text-stone-600">Alben werden geladen…</p>
       </div>
     );
   }
@@ -82,7 +82,7 @@ function AlbumSelector({ immichConfig, onSelectAlbum }: AlbumSelectorProps) {
             onClick={loadAlbums}
             className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm transition-colors shadow-sm font-medium"
           >
-            Retry
+            Erneut versuchen
           </button>
         </div>
       </div>
@@ -92,7 +92,7 @@ function AlbumSelector({ immichConfig, onSelectAlbum }: AlbumSelectorProps) {
   if (albums.length === 0) {
     return (
       <div className="max-w-md mx-auto text-center py-12">
-        <p className="text-gray-600">No albums found in your Immich library.</p>
+        <p className="text-stone-600">Keine Alben in deiner Immich-Bibliothek gefunden.</p>
       </div>
     );
   }
@@ -100,9 +100,9 @@ function AlbumSelector({ immichConfig, onSelectAlbum }: AlbumSelectorProps) {
   return (
     <div>
       <div className="mb-6">
-        <h2 className="text-2xl font-semibold">Select an Album</h2>
-        <p className="text-gray-600 mt-1">
-          Choose an album to create a photo book ({albums.length} albums found)
+        <h2 className="text-2xl font-semibold">Album auswählen</h2>
+        <p className="text-stone-600 mt-1">
+          Wähle ein Album für dein Fotobuch ({albums.length} Alben gefunden)
         </p>
       </div>
 
@@ -114,7 +114,7 @@ function AlbumSelector({ immichConfig, onSelectAlbum }: AlbumSelectorProps) {
             className="flex flex-col text-left bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden"
           >
             {album.albumThumbnailAssetId ? (
-              <div className="h-48 bg-gray-200 relative overflow-hidden">
+              <div className="h-48 bg-stone-200 relative overflow-hidden">
                 <img
                   src={`${immichConfig.baseUrl}/assets/${album.albumThumbnailAssetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`}
                   alt={album.albumName}
@@ -122,9 +122,9 @@ function AlbumSelector({ immichConfig, onSelectAlbum }: AlbumSelectorProps) {
                 />
               </div>
             ) : (
-              <div className="h-48 bg-gray-200 flex items-center justify-center">
+              <div className="h-48 bg-stone-200 flex items-center justify-center">
                 <svg
-                  className="w-12 h-12 text-gray-400"
+                  className="w-12 h-12 text-stone-400"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -139,14 +139,14 @@ function AlbumSelector({ immichConfig, onSelectAlbum }: AlbumSelectorProps) {
               </div>
             )}
             <div className="p-4">
-              <h3 className="font-semibold text-gray-900 truncate">
+              <h3 className="font-semibold text-stone-900 truncate">
                 {album.albumName}
               </h3>
-              <p className="text-sm text-gray-500 mt-1">
-                {album.assetCount} {album.assetCount === 1 ? "photo" : "photos"}
+              <p className="text-sm text-stone-500 mt-1">
+                {album.assetCount} {album.assetCount === 1 ? "Foto" : "Fotos"}
               </p>
               {album.description && (
-                <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                <p className="text-sm text-stone-600 mt-2 line-clamp-2">
                   {album.description}
                 </p>
               )}

@@ -242,6 +242,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     null,
   );
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Images removed from the book (kept in Immich); plus the restore-panel toggle.
   const [excludedAssetIds, setExcludedAssetIds] = useState<Set<string>>(
@@ -350,7 +351,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       });
       setAssets(sorted);
     } catch (err) {
-      setError((err as Error).message || "Failed to load album assets");
+      setError(
+        (err as Error).message || "Album-Fotos konnten nicht geladen werden",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -860,8 +863,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   if (isLoading) {
     return (
       <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        <p className="mt-4 text-gray-600">Loading photos...</p>
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-stone-900"></div>
+        <p className="mt-4 text-stone-600">Fotos werden geladen…</p>
       </div>
     );
   }
@@ -871,9 +874,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       <div className="max-w-md mx-auto">
         <button
           onClick={onBack}
-          className="mb-4 text-blue-600 hover:text-blue-800"
+          className="mb-4 text-primary-600 hover:text-primary-800"
         >
-          ← Back to albums
+          ← Zurück zu den Alben
         </button>
         <div className="p-4 bg-red-50 border border-red-200 rounded-md">
           <p className="text-sm text-red-800">{error}</p>
@@ -895,15 +898,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
         <div className="w-full lg:w-auto">
           <button
             onClick={onBack}
-            className="text-blue-600 hover:text-blue-800 mb-2"
+            className="text-primary-600 hover:text-primary-800 mb-2"
           >
-            ← Back to albums
+            ← Zurück zu den Alben
           </button>
           <h2 className="text-2xl font-semibold">{album.albumName}</h2>
-          <p className="text-gray-600 mt-1">
-            {filteredAssets.length}{" "}
-            {filteredAssets.length !== assets.length && `of ${assets.length}`}{" "}
-            assets
+          <p className="text-stone-600 mt-1">
+            {filteredAssets.length !== assets.length
+              ? `${filteredAssets.length} von ${assets.length} Fotos`
+              : `${filteredAssets.length} Fotos`}
           </p>
 
           {/* Generate PDF / Back to Edit button */}
@@ -911,22 +914,22 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             {mode === "preview" ? (
               <button
                 onClick={() => setMode("pdf")}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm"
+                className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium transition-colors shadow-sm"
               >
-                Generate PDF
+                PDF erzeugen
               </button>
             ) : (
               <button
                 onClick={() => setMode("preview")}
-                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors shadow-sm"
+                className="px-6 py-2 bg-stone-600 text-white rounded-lg hover:bg-stone-700 font-medium transition-colors shadow-sm"
               >
-                Back to Edit
+                Zurück zum Editor
               </button>
             )}
             {mode === "preview" && (
               <button
                 onClick={handleAddBlocker}
-                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm text-sm"
+                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
                 title="Leeren Gestaltungsraum einfügen (drückt Bilder weg)"
               >
                 + Leerraum
@@ -935,7 +938,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             {mode === "preview" && (
               <button
                 onClick={() => setShowImagePicker((v) => !v)}
-                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm text-sm"
+                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
                 title="Ein Album-Bild frei auf der Seite platzieren"
               >
                 + Bild einfügen
@@ -944,7 +947,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             {mode === "preview" && (
               <button
                 onClick={handleInsertText}
-                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm text-sm"
+                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
                 title="Freies Textfeld einfügen"
               >
                 + Text einfügen
@@ -953,7 +956,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             {mode === "preview" && (
               <button
                 onClick={handleInsertShape}
-                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm text-sm"
+                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
                 title="Freie Form einfügen (Rechteck/Ellipse/Linie)"
               >
                 + Form
@@ -963,18 +966,18 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               <div className="relative">
                 <button
                   onClick={() => setEmojiPickerOpen((v) => !v)}
-                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm text-sm"
+                  className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
                   title="Emoji einfügen"
                 >
                   + Emoji
                 </button>
                 {emojiPickerOpen && (
-                  <div className="absolute z-50 mt-1 grid grid-cols-8 gap-1 rounded-lg border border-gray-300 bg-white p-2 shadow-lg">
+                  <div className="absolute z-50 mt-1 grid grid-cols-8 gap-1 rounded-lg border border-stone-300 bg-white p-2 shadow-lg">
                     {EMOJI_PALETTE.map((em) => (
                       <button
                         key={em}
                         onClick={() => handleInsertEmoji(em)}
-                        className="h-8 w-8 rounded hover:bg-gray-100 text-xl leading-none"
+                        className="h-8 w-8 rounded hover:bg-stone-100 text-xl leading-none"
                       >
                         {em}
                       </button>
@@ -986,7 +989,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             {excludedAssetIds.size > 0 && (
               <button
                 onClick={() => setShowExcludedPanel((v) => !v)}
-                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm text-sm flex items-center gap-1.5"
+                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm flex items-center gap-1.5"
                 title="Aus dem Buch entfernte Bilder anzeigen / wiederherstellen"
               >
                 <Icon path={mdiTrashCanOutline} size={0.7} />
@@ -996,17 +999,40 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           </div>
         </div>
 
-        <div className="space-y-2 w-full lg:w-auto">
-          {/* 1. Page Setup */}
-          <div className="p-2 bg-gray-50 rounded border border-gray-300">
+        <div className="w-full lg:w-auto">
+          <button
+            onClick={() => setSettingsOpen((v) => !v)}
+            className="flex items-center gap-1.5 text-sm font-medium text-stone-600 hover:text-stone-900 transition-colors"
+          >
+            <svg
+              className={`w-4 h-4 transition-transform ${
+                settingsOpen ? "rotate-90" : ""
+              }`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
+            Einstellungen
+          </button>
+          {settingsOpen && (
+            <div className="space-y-2 mt-2">
+              {/* 1. Page Setup */}
+          <div className="p-2 bg-stone-50 rounded border border-stone-300">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-              <h3 className="text-xs font-semibold text-gray-700 sm:w-28">
-                Page
+              <h3 className="text-xs font-semibold text-stone-700 sm:w-28">
+                Seite (px)
               </h3>
               <div className="flex flex-wrap items-center gap-2 sm:gap-1">
                 <div className="flex items-center gap-1">
-                  <label htmlFor="pageWidth" className="text-gray-600 text-xs">
-                    Width:
+                  <label htmlFor="pageWidth" className="text-stone-600 text-xs">
+                    Breite:
                   </label>
                   <input
                     type="number"
@@ -1022,15 +1048,14 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     max="10000"
                     className={`px-1 py-0.5 w-16 text-xs border rounded ${
                       isPageWidthValid
-                        ? "border-gray-300"
+                        ? "border-stone-300"
                         : "border-red-500 bg-red-50"
                     }`}
                   />
-                  <span className="text-xs text-gray-500">px</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <label htmlFor="pageHeight" className="text-gray-600 text-xs">
-                    Height:
+                  <label htmlFor="pageHeight" className="text-stone-600 text-xs">
+                    Höhe:
                   </label>
                   <input
                     type="number"
@@ -1046,11 +1071,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     max="10000"
                     className={`px-1 py-0.5 w-16 text-xs border rounded ${
                       isPageHeightValid
-                        ? "border-gray-300"
+                        ? "border-stone-300"
                         : "border-red-500 bg-red-50"
                     }`}
                   />
-                  <span className="text-xs text-gray-500">px</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <input
@@ -1058,13 +1082,13 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     id="combinePages"
                     checked={combinePages}
                     onChange={(e) => setCombinePages(e.target.checked)}
-                    className="h-3 w-3"
+                    className="h-3 w-3 accent-primary-600"
                   />
                   <label
                     htmlFor="combinePages"
-                    className="text-xs text-gray-700"
+                    className="text-xs text-stone-700"
                   >
-                    Combine Pages
+                    Seiten kombinieren
                   </label>
                 </div>
               </div>
@@ -1072,15 +1096,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           </div>
 
           {/* 2. Layout */}
-          <div className="p-2 bg-gray-50 rounded border border-gray-300">
+          <div className="p-2 bg-stone-50 rounded border border-stone-300">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-              <h3 className="text-xs font-semibold text-gray-700 sm:w-28">
-                Layout
+              <h3 className="text-xs font-semibold text-stone-700 sm:w-28">
+                Layout (px)
               </h3>
               <div className="flex flex-wrap items-center gap-2 sm:gap-1">
                 <div className="flex items-center gap-1">
-                  <label htmlFor="margin" className="text-gray-600 text-xs">
-                    Margin:
+                  <label htmlFor="margin" className="text-stone-600 text-xs">
+                    Rand:
                   </label>
                   <input
                     type="number"
@@ -1097,15 +1121,14 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     step="10"
                     className={`px-1 py-0.5 w-14 text-xs border rounded ${
                       isMarginValid
-                        ? "border-gray-300"
+                        ? "border-stone-300"
                         : "border-red-500 bg-red-50"
                     }`}
                   />
-                  <span className="text-xs text-gray-500">px</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <label htmlFor="rowHeight" className="text-gray-600 text-xs">
-                    Row Height:
+                  <label htmlFor="rowHeight" className="text-stone-600 text-xs">
+                    Zeilenhöhe:
                   </label>
                   <input
                     type="number"
@@ -1122,15 +1145,14 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     step="10"
                     className={`px-1 py-0.5 w-14 text-xs border rounded ${
                       isRowHeightValid
-                        ? "border-gray-300"
+                        ? "border-stone-300"
                         : "border-red-500 bg-red-50"
                     }`}
                   />
-                  <span className="text-xs text-gray-500">px</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <label htmlFor="spacing" className="text-gray-600 text-xs">
-                    Spacing:
+                  <label htmlFor="spacing" className="text-stone-600 text-xs">
+                    Abstand:
                   </label>
                   <input
                     type="number"
@@ -1146,21 +1168,20 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     max="100"
                     className={`px-1 py-0.5 w-12 text-xs border rounded ${
                       isSpacingValid
-                        ? "border-gray-300"
+                        ? "border-stone-300"
                         : "border-red-500 bg-red-50"
                     }`}
                   />
-                  <span className="text-xs text-gray-500">px</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* 3. Presentation */}
-          <div className="p-2 bg-gray-50 rounded border border-gray-300">
+          <div className="p-2 bg-stone-50 rounded border border-stone-300">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-              <h3 className="text-xs font-semibold text-gray-700 sm:w-28">
-                Presentation
+              <h3 className="text-xs font-semibold text-stone-700 sm:w-28">
+                Darstellung
               </h3>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <div className="flex items-center gap-1">
@@ -1169,13 +1190,13 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     id="filterVideos"
                     checked={filterVideos}
                     onChange={(e) => setFilterVideos(e.target.checked)}
-                    className="h-3 w-3"
+                    className="h-3 w-3 accent-primary-600"
                   />
                   <label
                     htmlFor="filterVideos"
-                    className="text-xs text-gray-700"
+                    className="text-xs text-stone-700"
                   >
-                    Exclude Videos
+                    Videos ausschließen
                   </label>
                 </div>
                 <div className="flex items-center gap-1">
@@ -1184,10 +1205,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     id="showDates"
                     checked={showDates}
                     onChange={(e) => setShowDates(e.target.checked)}
-                    className="h-3 w-3"
+                    className="h-3 w-3 accent-primary-600"
                   />
-                  <label htmlFor="showDates" className="text-xs text-gray-700">
-                    Show Dates
+                  <label htmlFor="showDates" className="text-xs text-stone-700">
+                    Datum zeigen
                   </label>
                 </div>
                 <div className="flex items-center gap-1">
@@ -1196,24 +1217,24 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     id="showDescriptions"
                     checked={showDescriptions}
                     onChange={(e) => setShowDescriptions(e.target.checked)}
-                    className="h-3 w-3"
+                    className="h-3 w-3 accent-primary-600"
                   />
                   <label
                     htmlFor="showDescriptions"
-                    className="text-xs text-gray-700"
+                    className="text-xs text-stone-700"
                   >
-                    Show Descriptions
+                    Beschreibungen zeigen
                   </label>
                 </div>
                 <div className="flex items-center gap-1">
-                  <label htmlFor="fontSize" className="text-gray-600 text-xs">
-                    Font Size:
+                  <label htmlFor="fontSize" className="text-stone-600 text-xs">
+                    Schriftgröße:
                   </label>
                   <select
                     id="fontSize"
                     value={fontSize}
                     onChange={(e) => setFontSize(Number(e.target.value))}
-                    className="px-1 py-0.5 text-xs border border-gray-300 rounded"
+                    className="px-1 py-0.5 text-xs border border-stone-300 rounded"
                   >
                     <option value="8">8 pt</option>
                     <option value="9">9 pt</option>
@@ -1236,51 +1257,51 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           {(customAspectRatios.size > 0 ||
             customOrdering !== null ||
             descriptionPositions.size > 0) && (
-            <div className="p-2 bg-gray-50 rounded border border-gray-300">
+            <div className="p-2 bg-stone-50 rounded border border-stone-300">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                <h3 className="text-xs font-semibold text-gray-700 sm:w-28">
-                  Customizations
+                <h3 className="text-xs font-semibold text-stone-700 sm:w-28">
+                  Anpassungen
                 </h3>
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                   {customOrdering !== null && (
                     <div className="flex items-center gap-2">
-                      <span className="flex items-center gap-1 text-xs text-gray-600">
+                      <span className="flex items-center gap-1 text-xs text-stone-600">
                         <span className="w-2 h-2 bg-green-500 rounded-full" />
-                        Custom order
+                        Eigene Reihenfolge
                       </span>
                       <button
                         onClick={handleResetOrdering}
                         className="text-xs px-2 py-0.5 bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors font-medium"
                       >
-                        Reset
+                        Zurücksetzen
                       </button>
                     </div>
                   )}
                   {customAspectRatios.size > 0 && (
                     <div className="flex items-center gap-2">
-                      <span className="flex items-center gap-1 text-xs text-gray-600">
-                        <span className="w-2 h-2 bg-blue-500 rounded-full" />
-                        {customAspectRatios.size} aspect ratio
+                      <span className="flex items-center gap-1 text-xs text-stone-600">
+                        <span className="w-2 h-2 bg-primary-500 rounded-full" />
+                        {customAspectRatios.size} Seitenverhältnis
                       </span>
                       <button
                         onClick={handleResetAllCustomizations}
                         className="text-xs px-2 py-0.5 bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors font-medium"
                       >
-                        Reset
+                        Zurücksetzen
                       </button>
                     </div>
                   )}
                   {descriptionPositions.size > 0 && (
                     <div className="flex items-center gap-2">
-                      <span className="flex items-center gap-1 text-xs text-gray-600">
+                      <span className="flex items-center gap-1 text-xs text-stone-600">
                         <span className="w-2 h-2 bg-purple-500 rounded-full" />
-                        {descriptionPositions.size} label position
+                        {descriptionPositions.size} Label-Position
                       </span>
                       <button
                         onClick={handleResetDescriptionPositions}
                         className="text-xs px-2 py-0.5 bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors font-medium"
                       >
-                        Reset
+                        Zurücksetzen
                       </button>
                     </div>
                   )}
@@ -1288,18 +1309,20 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               </div>
             </div>
           )}
+            </div>
+          )}
         </div>
       </div>
 
       {showImagePicker && (
-        <div className="mb-6 p-3 bg-gray-50 border border-gray-300 rounded">
+        <div className="mb-6 p-3 bg-stone-50 border border-stone-300 rounded">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-gray-700">
+            <h3 className="text-sm font-semibold text-stone-700">
               Bild einfügen — wird mittig auf Seite 1 frei platziert
             </h3>
             <button
               onClick={() => setShowImagePicker(false)}
-              className="text-xs text-gray-500 hover:text-gray-700"
+              className="text-xs text-stone-500 hover:text-stone-700"
             >
               Schließen
             </button>
@@ -1311,7 +1334,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 <button
                   key={asset.id}
                   onClick={() => handleInsertImage(asset)}
-                  className="relative w-24 h-24 rounded border border-gray-300 overflow-hidden hover:ring-2 hover:ring-blue-500 transition"
+                  className="relative w-24 h-24 rounded border border-stone-300 overflow-hidden hover:ring-2 hover:ring-primary-500 transition"
                   title="Frei einfügen"
                 >
                   <img
@@ -1327,20 +1350,20 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       )}
 
       {showExcludedPanel && (
-        <div className="mb-6 p-3 bg-gray-50 border border-gray-300 rounded">
+        <div className="mb-6 p-3 bg-stone-50 border border-stone-300 rounded">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-gray-700">
+            <h3 className="text-sm font-semibold text-stone-700">
               Aus dem Buch entfernt ({excludedAssetIds.size}) — bleiben in Immich
             </h3>
             <button
               onClick={() => setShowExcludedPanel(false)}
-              className="text-xs text-gray-500 hover:text-gray-700"
+              className="text-xs text-stone-500 hover:text-stone-700"
             >
               Schließen
             </button>
           </div>
           {excludedAssetIds.size === 0 ? (
-            <p className="text-xs text-gray-500">Keine entfernten Bilder.</p>
+            <p className="text-xs text-stone-500">Keine entfernten Bilder.</p>
           ) : (
             <div className="flex flex-wrap gap-3">
               {assets
@@ -1350,12 +1373,12 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     <img
                       src={`${immichConfig.baseUrl}/assets/${asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`}
                       alt={asset.originalFileName}
-                      className="w-full h-full object-cover rounded border border-gray-300"
+                      className="w-full h-full object-cover rounded border border-stone-300"
                       loading="lazy"
                     />
                     <button
                       onClick={() => handleRestoreAsset(asset.id)}
-                      className="absolute inset-x-0 bottom-0 bg-blue-600/90 hover:bg-blue-700 text-white text-[10px] py-1 rounded-b opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute inset-x-0 bottom-0 bg-primary-600/90 hover:bg-primary-700 text-white text-[10px] py-1 rounded-b opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       Wiederherstellen
                     </button>
@@ -1472,7 +1495,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
         >
           {selectedElementId && (
             <div
-              className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded border border-gray-300 bg-white/95 px-3 py-1.5 shadow-lg"
+              className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded border border-stone-300 bg-white/95 px-3 py-1.5 shadow-lg"
               onClick={(e) => e.stopPropagation()}
             >
               {selectedElement && isTextElement(selectedElement) ? (
@@ -1486,7 +1509,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       }))
                     }
                     placeholder="Text eingeben…"
-                    className="text-xs border border-gray-300 rounded px-1 py-0.5 w-44"
+                    className="text-xs border border-stone-300 rounded px-1 py-0.5 w-44"
                   />
                   <input
                     type="number"
@@ -1497,7 +1520,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         fontSize: Math.max(6, Number(e.target.value) || 24),
                       }))
                     }
-                    className="text-xs border border-gray-300 rounded px-1 py-0.5 w-14"
+                    className="text-xs border border-stone-300 rounded px-1 py-0.5 w-14"
                     title="Schriftgröße"
                   />
                   <input
@@ -1519,8 +1542,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       }
                       className={`text-xs px-2 py-0.5 rounded border ${
                         selectedElement.align === a
-                          ? "bg-blue-500 text-white border-blue-500"
-                          : "bg-white border-gray-300 hover:bg-gray-50"
+                          ? "bg-primary-500 text-white border-primary-500"
+                          : "bg-white border-stone-300 hover:bg-stone-50"
                       }`}
                       title={`Ausrichtung ${a}`}
                     >
@@ -1547,15 +1570,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       }
                       className={`text-xs px-2 py-0.5 rounded border ${
                         selectedElement.shape === s
-                          ? "bg-blue-500 text-white border-blue-500"
-                          : "bg-white border-gray-300 hover:bg-gray-50"
+                          ? "bg-primary-500 text-white border-primary-500"
+                          : "bg-white border-stone-300 hover:bg-stone-50"
                       }`}
                       title={`Form: ${s}`}
                     >
                       {s === "rect" ? "▭" : s === "ellipse" ? "◯" : "—"}
                     </button>
                   ))}
-                  <label className="text-xs text-gray-600 flex items-center gap-1">
+                  <label className="text-xs text-stone-600 flex items-center gap-1">
                     Füllung
                     <input
                       type="color"
@@ -1568,7 +1591,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       className="h-6 w-8 cursor-pointer"
                     />
                   </label>
-                  <label className="text-xs text-gray-600 flex items-center gap-1">
+                  <label className="text-xs text-stone-600 flex items-center gap-1">
                     Rand
                     <input
                       type="color"
@@ -1590,7 +1613,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         strokeWidth: Math.max(0, Number(e.target.value) || 0),
                       }))
                     }
-                    className="text-xs border border-gray-300 rounded px-1 py-0.5 w-14"
+                    className="text-xs border border-stone-300 rounded px-1 py-0.5 w-14"
                     title="Randstärke (px)"
                   />
                   <button
@@ -1603,7 +1626,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 </>
               ) : selectedElement && isEmojiElement(selectedElement) ? (
                 <>
-                  <span className="text-xs text-gray-600">
+                  <span className="text-xs text-stone-600">
                     Emoji {selectedElement.emoji}
                   </span>
                   <button
@@ -1616,7 +1639,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 </>
               ) : (
                 <>
-                  <span className="text-xs text-gray-600">Bild</span>
+                  <span className="text-xs text-stone-600">Bild</span>
                   <input
                     type="text"
                     value={
@@ -1641,7 +1664,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       }));
                     }}
                     placeholder="Beschriftung…"
-                    className="text-xs border border-gray-300 rounded px-1 py-0.5 w-40"
+                    className="text-xs border border-stone-300 rounded px-1 py-0.5 w-40"
                   />
                   <button
                     onClick={() =>
@@ -1660,7 +1683,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           : {},
                       )
                     }
-                    className="text-xs px-2 py-0.5 bg-white border border-gray-300 hover:bg-gray-50 rounded"
+                    className="text-xs px-2 py-0.5 bg-white border border-stone-300 hover:bg-stone-50 rounded"
                     title="Beschriftung oben/unten"
                   >
                     {selectedElement &&
@@ -1672,7 +1695,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   </button>
                   <button
                     onClick={() => refixElement(selectedElementId)}
-                    className="text-xs px-2 py-0.5 bg-gray-700 hover:bg-gray-900 text-white rounded"
+                    className="text-xs px-2 py-0.5 bg-stone-700 hover:bg-stone-900 text-white rounded"
                   >
                     Fixieren (Lösen rückgängig)
                   </button>
@@ -1680,21 +1703,21 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               )}
               <button
                 onClick={() => handleBringToFront(selectedElementId)}
-                className="text-xs px-2 py-0.5 bg-white border border-gray-300 hover:bg-gray-50 rounded"
+                className="text-xs px-2 py-0.5 bg-white border border-stone-300 hover:bg-stone-50 rounded"
                 title="Element nach vorne holen"
               >
                 Nach vorne
               </button>
               <button
                 onClick={() => handleSendToBack(selectedElementId)}
-                className="text-xs px-2 py-0.5 bg-white border border-gray-300 hover:bg-gray-50 rounded"
+                className="text-xs px-2 py-0.5 bg-white border border-stone-300 hover:bg-stone-50 rounded"
                 title="Element nach hinten schicken"
               >
                 Nach hinten
               </button>
               <button
                 onClick={() => setSelectedElementId(null)}
-                className="text-xs px-2 py-0.5 bg-white border border-gray-300 hover:bg-gray-50 rounded"
+                className="text-xs px-2 py-0.5 bg-white border border-stone-300 hover:bg-stone-50 rounded"
               >
                 Abwählen
               </button>
@@ -1723,8 +1746,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       className="flex items-center justify-center gap-2"
                       style={{ width: `${displayWidth / 2}px` }}
                     >
-                      <span className="inline-block px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded">
-                        Page {page.pageNumber * 2 - 1} of {totalLogicalPages}
+                      <span className="inline-block px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
+                        Seite {page.pageNumber * 2 - 1} von {totalLogicalPages}
                       </span>
                       <div className="flex gap-1">
                         <button
@@ -1737,10 +1760,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           className={`px-2 py-1 text-xs border rounded transition-colors flex items-center ${
                             (pageAlignments.get(page.pageNumber * 2 - 1) ||
                               "left") === "left"
-                              ? "bg-blue-500 text-white border-blue-500"
-                              : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                              ? "bg-primary-500 text-white border-primary-500"
+                              : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
                           }`}
-                          title="Align to left"
+                          title="Linksbündig"
                         >
                           <Icon path={mdiFormatAlignLeft} size={0.6} />
                         </button>
@@ -1754,10 +1777,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           className={`px-2 py-1 text-xs border rounded transition-colors flex items-center ${
                             (pageAlignments.get(page.pageNumber * 2 - 1) ||
                               "left") === "center"
-                              ? "bg-blue-500 text-white border-blue-500"
-                              : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                              ? "bg-primary-500 text-white border-primary-500"
+                              : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
                           }`}
-                          title="Align to center"
+                          title="Zentriert"
                         >
                           <Icon path={mdiFormatAlignCenter} size={0.6} />
                         </button>
@@ -1771,10 +1794,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           className={`px-2 py-1 text-xs border rounded transition-colors flex items-center ${
                             (pageAlignments.get(page.pageNumber * 2 - 1) ||
                               "left") === "right"
-                              ? "bg-blue-500 text-white border-blue-500"
-                              : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                              ? "bg-primary-500 text-white border-primary-500"
+                              : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
                           }`}
-                          title="Align to right"
+                          title="Rechtsbündig"
                         >
                           <Icon path={mdiFormatAlignRight} size={0.6} />
                         </button>
@@ -1787,8 +1810,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         className="flex items-center justify-center gap-2"
                         style={{ width: `${displayWidth / 2}px` }}
                       >
-                        <span className="inline-block px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded">
-                          Page {page.pageNumber * 2} of {totalLogicalPages}
+                        <span className="inline-block px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
+                          Seite {page.pageNumber * 2} von {totalLogicalPages}
                         </span>
                         <div className="flex gap-1">
                           <button
@@ -1801,10 +1824,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             className={`px-2 py-1 text-xs border rounded transition-colors flex items-center ${
                               (pageAlignments.get(page.pageNumber * 2) ||
                                 "left") === "left"
-                                ? "bg-blue-500 text-white border-blue-500"
-                                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                                ? "bg-primary-500 text-white border-primary-500"
+                                : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
                             }`}
-                            title="Align to left"
+                            title="Linksbündig"
                           >
                             <Icon path={mdiFormatAlignLeft} size={0.6} />
                           </button>
@@ -1818,10 +1841,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             className={`px-2 py-1 text-xs border rounded transition-colors flex items-center ${
                               (pageAlignments.get(page.pageNumber * 2) ||
                                 "left") === "center"
-                                ? "bg-blue-500 text-white border-blue-500"
-                                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                                ? "bg-primary-500 text-white border-primary-500"
+                                : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
                             }`}
-                            title="Align to center"
+                            title="Zentriert"
                           >
                             <Icon path={mdiFormatAlignCenter} size={0.6} />
                           </button>
@@ -1835,10 +1858,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             className={`px-2 py-1 text-xs border rounded transition-colors flex items-center ${
                               (pageAlignments.get(page.pageNumber * 2) ||
                                 "left") === "right"
-                                ? "bg-blue-500 text-white border-blue-500"
-                                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                                ? "bg-primary-500 text-white border-primary-500"
+                                : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
                             }`}
-                            title="Align to right"
+                            title="Rechtsbündig"
                           >
                             <Icon path={mdiFormatAlignRight} size={0.6} />
                           </button>
@@ -1849,7 +1872,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 ) : (
                   /* Single page mode - center everything */
                   <div className="text-center mb-2 flex items-center justify-center gap-2">
-                    <span className="inline-block px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded">
+                    <span className="inline-block px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
                       Page {page.pageNumber} of {totalLogicalPages}
                     </span>
                     <div className="flex gap-1">
@@ -1862,10 +1885,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         className={`px-2 py-1 text-xs border rounded transition-colors flex items-center ${
                           (pageAlignments.get(page.pageNumber) || "left") ===
                           "left"
-                            ? "bg-blue-500 text-white border-blue-500"
-                            : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                            ? "bg-primary-500 text-white border-primary-500"
+                            : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
                         }`}
-                        title="Align to left"
+                        title="Linksbündig"
                       >
                         <Icon path={mdiFormatAlignLeft} size={0.6} />
                       </button>
@@ -1878,10 +1901,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         className={`px-2 py-1 text-xs border rounded transition-colors flex items-center ${
                           (pageAlignments.get(page.pageNumber) || "left") ===
                           "center"
-                            ? "bg-blue-500 text-white border-blue-500"
-                            : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                            ? "bg-primary-500 text-white border-primary-500"
+                            : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
                         }`}
-                        title="Align to center"
+                        title="Zentriert"
                       >
                         <Icon path={mdiFormatAlignCenter} size={0.6} />
                       </button>
@@ -1894,10 +1917,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         className={`px-2 py-1 text-xs border rounded transition-colors flex items-center ${
                           (pageAlignments.get(page.pageNumber) || "left") ===
                           "right"
-                            ? "bg-blue-500 text-white border-blue-500"
-                            : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                            ? "bg-primary-500 text-white border-primary-500"
+                            : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
                         }`}
-                        title="Align to right"
+                        title="Rechtsbündig"
                       >
                         <Icon path={mdiFormatAlignRight} size={0.6} />
                       </button>
@@ -1907,7 +1930,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
                 {/* Page container */}
                 <div
-                  className="relative bg-white shadow-lg mx-auto border border-gray-200"
+                  className="relative bg-white shadow-lg mx-auto border border-stone-200"
                   style={{
                     width: `${displayWidth}px`,
                     height: `${displayHeight}px`,
@@ -1916,7 +1939,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   {/* Page break indicator for combined pages */}
                   {combinePages && (
                     <div
-                      className="absolute top-0 bottom-0 border-l border-dashed border-gray-300 z-10 pointer-events-none"
+                      className="absolute top-0 bottom-0 border-l border-dashed border-stone-300 z-10 pointer-events-none"
                       style={{ left: `${displayWidth / 2}px` }}
                     />
                   )}
@@ -2004,7 +2027,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           {isDropTarget && reorderDragState && (
                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-lg z-10" />
                           )}
-                          <div className="w-full h-full border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-gray-400 text-xs select-none">
+                          <div className="w-full h-full border-2 border-dashed border-stone-300 bg-stone-50 flex items-center justify-center text-stone-400 text-xs select-none">
                             Leerraum
                           </div>
                           <button
@@ -2019,7 +2042,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             Entfernen
                           </button>
                           <div
-                            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-transparent group-hover:bg-blue-400/50 transition-colors"
+                            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-transparent group-hover:bg-primary-400/50 transition-colors"
                             onMouseDown={(e) =>
                               handleAspectDragStart(
                                 photoBox.asset.id,
@@ -2032,7 +2055,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             }
                           />
                           <div
-                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-transparent group-hover:bg-blue-400/50 transition-colors"
+                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-transparent group-hover:bg-primary-400/50 transition-colors"
                             onMouseDown={(e) =>
                               handleAspectDragStart(
                                 photoBox.asset.id,
@@ -2106,7 +2129,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         {/* Customization indicators */}
                         {hasAspectRatioCustomization && (
                           <div
-                            className="absolute top-2 left-2 w-2 h-2 bg-blue-500 rounded-full shadow-lg"
+                            className="absolute top-2 left-2 w-2 h-2 bg-primary-500 rounded-full shadow-lg"
                             title="Aspect ratio customized"
                           />
                         )}
@@ -2126,7 +2149,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         {/* Reset button - shown on hover for customized images */}
                         {(isCustomized || isReordered) && (
                           <div
-                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded shadow-lg text-xs font-medium"
+                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer bg-primary-500 hover:bg-primary-600 text-white px-3 py-1 rounded shadow-lg text-xs font-medium"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -2173,7 +2196,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
                         {/* Phase 3: unlock this auto image into a free element */}
                         <button
-                          className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800/80 hover:bg-gray-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                          className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-stone-800/80 hover:bg-stone-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -2211,8 +2234,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         <div
                           className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize transition-colors ${
                             isDragging && aspectDragState.edge === "left"
-                              ? "bg-blue-500"
-                              : "bg-transparent group-hover:bg-blue-400/50"
+                              ? "bg-primary-500"
+                              : "bg-transparent group-hover:bg-primary-400/50"
                           }`}
                           onMouseDown={(e) =>
                             handleAspectDragStart(
@@ -2230,8 +2253,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         <div
                           className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize transition-colors ${
                             isDragging && aspectDragState.edge === "right"
-                              ? "bg-blue-500"
-                              : "bg-transparent group-hover:bg-blue-400/50"
+                              ? "bg-primary-500"
+                              : "bg-transparent group-hover:bg-primary-400/50"
                           }`}
                           onMouseDown={(e) =>
                             handleAspectDragStart(
@@ -2255,7 +2278,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         data-overlay-id={el.id}
                         className={`absolute overflow-hidden cursor-move ${
                           selectedElementId === el.id
-                            ? "outline outline-2 outline-blue-500"
+                            ? "outline outline-2 outline-primary-500"
                             : ""
                         }`}
                         style={{ ...elementBoxStyle(el), zIndex: 40 + el.zIndex }}
