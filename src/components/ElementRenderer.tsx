@@ -13,8 +13,22 @@
  * übergeben, NICHT über `ImageElement.caption`. Die Umstellung auf das
  * caption-Feld des Modells erfolgt laut Plan erst in Phase 6.
  */
-import { View, Image, Text, StyleSheet } from "@react-pdf/renderer";
-import type { ImageElement, TextElement } from "../types/pageElement";
+import {
+  View,
+  Image,
+  Text,
+  StyleSheet,
+  Svg,
+  Rect,
+  Ellipse,
+  Line,
+} from "@react-pdf/renderer";
+import type {
+  ImageElement,
+  TextElement,
+  ShapeElement,
+  EmojiElement,
+} from "../types/pageElement";
 import type { Position } from "../utils/albumConfig";
 import { toPoints } from "../utils/units";
 
@@ -498,6 +512,146 @@ export function PdfTextElement({ element }: { element: TextElement }) {
         }}
       >
         {element.text}
+      </Text>
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Form-Adapter (Phase 7) – SVG für identische Geometrie Web+PDF.      */
+/* Die viewBox steht in Layout-Px, der Container in Punkten; da beide  */
+/* Achsen mit 72/300 skalieren, ist die Abbildung verzerrungsfrei.     */
+/* ------------------------------------------------------------------ */
+
+/** Web: Form als inline-SVG, füllt den (punkt-skalierten) Container. */
+export function WebShapeElement({ element }: { element: ShapeElement }) {
+  const w = element.width;
+  const h = element.height;
+  const fill = element.fill ?? "none";
+  const stroke = element.stroke ?? "none";
+  const sw = element.strokeWidth ?? 0;
+  return (
+    <svg
+      className="w-full h-full"
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+    >
+      {element.shape === "ellipse" ? (
+        <ellipse
+          cx={w / 2}
+          cy={h / 2}
+          rx={Math.max(0, w / 2 - sw / 2)}
+          ry={Math.max(0, h / 2 - sw / 2)}
+          fill={fill}
+          stroke={stroke}
+          strokeWidth={sw}
+        />
+      ) : element.shape === "line" ? (
+        <line
+          x1={0}
+          y1={h / 2}
+          x2={w}
+          y2={h / 2}
+          stroke={stroke !== "none" ? stroke : (element.fill ?? "#000000")}
+          strokeWidth={sw || 8}
+        />
+      ) : (
+        <rect
+          x={sw / 2}
+          y={sw / 2}
+          width={Math.max(0, w - sw)}
+          height={Math.max(0, h - sw)}
+          rx={element.radius ?? 0}
+          fill={fill}
+          stroke={stroke}
+          strokeWidth={sw}
+        />
+      )}
+    </svg>
+  );
+}
+
+/** PDF: Form als @react-pdf-SVG; identische viewBox/Koordinaten wie Web. */
+export function PdfShapeElement({ element }: { element: ShapeElement }) {
+  const w = element.width;
+  const h = element.height;
+  const fill = element.fill ?? "none";
+  const stroke = element.stroke ?? "none";
+  const sw = element.strokeWidth ?? 0;
+  return (
+    <View style={[photoStaticStyles.photoContainer, elementBoxStyle(element)]}>
+      <Svg
+        width={toPoints(w)}
+        height={toPoints(h)}
+        viewBox={`0 0 ${w} ${h}`}
+        preserveAspectRatio="none"
+      >
+        {element.shape === "ellipse" ? (
+          <Ellipse
+            cx={w / 2}
+            cy={h / 2}
+            rx={Math.max(0, w / 2 - sw / 2)}
+            ry={Math.max(0, h / 2 - sw / 2)}
+            fill={fill}
+            stroke={stroke}
+            strokeWidth={sw}
+          />
+        ) : element.shape === "line" ? (
+          <Line
+            x1={0}
+            y1={h / 2}
+            x2={w}
+            y2={h / 2}
+            stroke={stroke !== "none" ? stroke : (element.fill ?? "#000000")}
+            strokeWidth={sw || 8}
+          />
+        ) : (
+          <Rect
+            x={sw / 2}
+            y={sw / 2}
+            width={Math.max(0, w - sw)}
+            height={Math.max(0, h - sw)}
+            rx={element.radius ?? 0}
+            fill={fill}
+            stroke={stroke}
+            strokeWidth={sw}
+          />
+        )}
+      </Svg>
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Emoji-Adapter (Phase 7). Größe folgt aus der Box.                   */
+/* ------------------------------------------------------------------ */
+
+/** Web: Emoji als zentriertes Zeichen (OS-Farb-Emoji im Browser). */
+export function WebEmojiElement({ element }: { element: EmojiElement }) {
+  const size = toPoints(Math.min(element.width, element.height)) * 0.85;
+  return (
+    <div
+      className="w-full h-full flex items-center justify-center overflow-hidden"
+      style={{ fontSize: `${size}px`, lineHeight: 1 }}
+    >
+      {element.emoji}
+    </div>
+  );
+}
+
+/** PDF: Emoji über die lokal gebündelte Noto-Emoji-Schrift (offline, S/W). */
+export function PdfEmojiElement({ element }: { element: EmojiElement }) {
+  const size = toPoints(Math.min(element.width, element.height)) * 0.85;
+  return (
+    <View
+      style={[
+        photoStaticStyles.photoContainer,
+        elementBoxStyle(element),
+        { alignItems: "center", justifyContent: "center" },
+      ]}
+    >
+      <Text style={{ fontFamily: "NotoEmoji", fontSize: size }}>
+        {element.emoji}
       </Text>
     </View>
   );

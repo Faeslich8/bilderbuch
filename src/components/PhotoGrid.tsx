@@ -27,8 +27,12 @@ import {
 import { toPoints, screenToLayoutPx } from "../utils/units";
 import {
   PdfElement,
+  PdfEmojiElement,
+  PdfShapeElement,
   PdfTextElement,
   WebElement,
+  WebEmojiElement,
+  WebShapeElement,
   WebTextElement,
   createDynamicStyles,
   createWebStyles,
@@ -36,19 +40,25 @@ import {
 } from "./ElementRenderer";
 import { photoBoxToImageElement } from "../utils/photoBoxToElement";
 import {
+  createEmojiElement,
   createImageElement,
+  createShapeElement,
   createTextElement,
+  isEmojiElement,
   isImageElement,
+  isShapeElement,
   isTextElement,
   type BaseElement,
   type ImageElement,
   type PageElement,
+  type ShapeElement,
   type TextElement,
 } from "../types/pageElement";
 import Moveable from "react-moveable";
 import type { ImmichConfig } from "./ConnectionForm";
 import roboto400 from "@fontsource/roboto/files/roboto-latin-400-normal.woff?url";
 import roboto500 from "@fontsource/roboto/files/roboto-latin-500-normal.woff?url";
+import notoEmoji from "@fontsource/noto-emoji/files/noto-emoji-emoji-400-normal.woff?url";
 import Icon from "@mdi/react";
 import {
   mdiFormatAlignLeft,
@@ -64,6 +74,12 @@ Font.register({
     { src: roboto400, fontWeight: 400 },
     { src: roboto500, fontWeight: 500 },
   ],
+});
+
+// Local Noto Emoji (B&W) for emoji elements in the PDF — offline, no CDN.
+Font.register({
+  family: "NotoEmoji",
+  fonts: [{ src: notoEmoji }],
 });
 
 interface PhotoGridProps {
@@ -82,6 +98,14 @@ const staticStyles = StyleSheet.create({
 // A "Leerraum" (blocker) participates in the auto layout like a photo but renders as
 // empty design space. Identified by an id prefix; carries no real asset.
 const BLOCKER_PREFIX = "blocker:";
+
+// Common emojis offered by the "+ Emoji" picker (Phase 7).
+const EMOJI_PALETTE = [
+  "😀", "😄", "😍", "🥳", "😎", "🤩", "😢", "😡",
+  "👍", "👎", "👏", "🙌", "💪", "🙏", "❤️", "⭐",
+  "✨", "🔥", "🎉", "🎂", "🎁", "🌸", "🌈", "☀️",
+  "🍀", "🐶", "🐱", "📷",
+];
 const isBlocker = (id: string): boolean => id.startsWith(BLOCKER_PREFIX);
 
 // Placeholder asset so a blocker flows through calculatePageLayout. The 1:1 default
@@ -217,6 +241,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const [moveableTarget, setMoveableTarget] = useState<HTMLElement | null>(
     null,
   );
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
   // Images removed from the book (kept in Immich); plus the restore-panel toggle.
   const [excludedAssetIds, setExcludedAssetIds] = useState<Set<string>>(
@@ -537,6 +562,37 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     setSelectedElementId(el.id);
   };
 
+  const handleInsertShape = () => {
+    const size = 600;
+    const el = createShapeElement({
+      x: Math.round((validPageWidth - size) / 2),
+      y: Math.round((validPageHeight - size) / 2),
+      width: size,
+      height: size,
+    });
+    setOverlayElements((prev) => ({
+      ...prev,
+      ["1"]: [...(prev["1"] ?? []), el],
+    }));
+    setSelectedElementId(el.id);
+  };
+
+  const handleInsertEmoji = (emoji: string) => {
+    const size = 400;
+    const el = createEmojiElement(emoji, {
+      x: Math.round((validPageWidth - size) / 2),
+      y: Math.round((validPageHeight - size) / 2),
+      width: size,
+      height: size,
+    });
+    setOverlayElements((prev) => ({
+      ...prev,
+      ["1"]: [...(prev["1"] ?? []), el],
+    }));
+    setSelectedElementId(el.id);
+    setEmojiPickerOpen(false);
+  };
+
   // Calculate content width for snapping
   const contentWidth = useMemo(() => {
     return validPageWidth - validMargin * 2;
@@ -662,6 +718,22 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       for (const [pageId, els] of Object.entries(prev)) {
         next[pageId] = els.map((el) =>
           el.id === id && isImageElement(el) ? { ...el, ...patch(el) } : el,
+        );
+      }
+      return next;
+    });
+  };
+
+  // Phase 7: patch a SHAPE element's own fields (shape, fill, stroke, …).
+  const updateShapeElement = (
+    id: string,
+    patch: (el: ShapeElement) => Partial<ShapeElement>,
+  ) => {
+    setOverlayElements((prev) => {
+      const next: Record<string, PageElement[]> = {};
+      for (const [pageId, els] of Object.entries(prev)) {
+        next[pageId] = els.map((el) =>
+          el.id === id && isShapeElement(el) ? { ...el, ...patch(el) } : el,
         );
       }
       return next;
@@ -877,6 +949,39 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               >
                 + Text einfügen
               </button>
+            )}
+            {mode === "preview" && (
+              <button
+                onClick={handleInsertShape}
+                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm text-sm"
+                title="Freie Form einfügen (Rechteck/Ellipse/Linie)"
+              >
+                + Form
+              </button>
+            )}
+            {mode === "preview" && (
+              <div className="relative">
+                <button
+                  onClick={() => setEmojiPickerOpen((v) => !v)}
+                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm text-sm"
+                  title="Emoji einfügen"
+                >
+                  + Emoji
+                </button>
+                {emojiPickerOpen && (
+                  <div className="absolute z-50 mt-1 grid grid-cols-8 gap-1 rounded-lg border border-gray-300 bg-white p-2 shadow-lg">
+                    {EMOJI_PALETTE.map((em) => (
+                      <button
+                        key={em}
+                        onClick={() => handleInsertEmoji(em)}
+                        className="h-8 w-8 rounded hover:bg-gray-100 text-xl leading-none"
+                      >
+                        {em}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
             {excludedAssetIds.size > 0 && (
               <button
@@ -1347,6 +1452,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           />
                         ) : isTextElement(el) ? (
                           <PdfTextElement key={el.id} element={el} />
+                        ) : isShapeElement(el) ? (
+                          <PdfShapeElement key={el.id} element={el} />
+                        ) : isEmojiElement(el) ? (
+                          <PdfEmojiElement key={el.id} element={el} />
                         ) : null,
                     )}
                   </Page>
@@ -1422,6 +1531,85 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     onClick={() => refixElement(selectedElementId)}
                     className="text-xs px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded"
                     title="Textfeld entfernen"
+                  >
+                    Entfernen
+                  </button>
+                </>
+              ) : selectedElement && isShapeElement(selectedElement) ? (
+                <>
+                  {(["rect", "ellipse", "line"] as const).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() =>
+                        updateShapeElement(selectedElementId, () => ({
+                          shape: s,
+                        }))
+                      }
+                      className={`text-xs px-2 py-0.5 rounded border ${
+                        selectedElement.shape === s
+                          ? "bg-blue-500 text-white border-blue-500"
+                          : "bg-white border-gray-300 hover:bg-gray-50"
+                      }`}
+                      title={`Form: ${s}`}
+                    >
+                      {s === "rect" ? "▭" : s === "ellipse" ? "◯" : "—"}
+                    </button>
+                  ))}
+                  <label className="text-xs text-gray-600 flex items-center gap-1">
+                    Füllung
+                    <input
+                      type="color"
+                      value={selectedElement.fill ?? "#3b82f6"}
+                      onChange={(e) =>
+                        updateShapeElement(selectedElementId, () => ({
+                          fill: e.target.value,
+                        }))
+                      }
+                      className="h-6 w-8 cursor-pointer"
+                    />
+                  </label>
+                  <label className="text-xs text-gray-600 flex items-center gap-1">
+                    Rand
+                    <input
+                      type="color"
+                      value={selectedElement.stroke ?? "#000000"}
+                      onChange={(e) =>
+                        updateShapeElement(selectedElementId, () => ({
+                          stroke: e.target.value,
+                        }))
+                      }
+                      className="h-6 w-8 cursor-pointer"
+                    />
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={selectedElement.strokeWidth ?? 0}
+                    onChange={(e) =>
+                      updateShapeElement(selectedElementId, () => ({
+                        strokeWidth: Math.max(0, Number(e.target.value) || 0),
+                      }))
+                    }
+                    className="text-xs border border-gray-300 rounded px-1 py-0.5 w-14"
+                    title="Randstärke (px)"
+                  />
+                  <button
+                    onClick={() => refixElement(selectedElementId)}
+                    className="text-xs px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded"
+                    title="Form entfernen"
+                  >
+                    Entfernen
+                  </button>
+                </>
+              ) : selectedElement && isEmojiElement(selectedElement) ? (
+                <>
+                  <span className="text-xs text-gray-600">
+                    Emoji {selectedElement.emoji}
+                  </span>
+                  <button
+                    onClick={() => refixElement(selectedElementId)}
+                    className="text-xs px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded"
+                    title="Emoji entfernen"
                   >
                     Entfernen
                   </button>
@@ -2087,6 +2275,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           />
                         ) : isTextElement(el) ? (
                           <WebTextElement element={el} />
+                        ) : isShapeElement(el) ? (
+                          <WebShapeElement element={el} />
+                        ) : isEmojiElement(el) ? (
+                          <WebEmojiElement element={el} />
                         ) : null}
                       </div>
                     ))}
