@@ -81,8 +81,35 @@ Font.register({
   ],
 });
 
-// Farb-Emoji im PDF über lokal gebündelte Twemoji-PNGs (offline, kein CDN zur Laufzeit).
-Font.registerEmojiSource({ format: "png", url: "/twemoji/" });
+// Farb-Emoji im PDF: jedes Emoji wird zur PDF-Zeit per Canvas aus der OS-Emoji-Schrift
+// in eine PNG-Data-URL gerendert — farbig, offline, ohne gebündelte Dateien, volle Abdeckung.
+const emojiPngCache = new Map<string, string>();
+function emojiToPngDataUrl(code: string): string {
+  const cached = emojiPngCache.get(code);
+  if (cached !== undefined) return cached;
+  const emoji = String.fromCodePoint(
+    ...code.split("-").map((h) => parseInt(h, 16)),
+  );
+  const size = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  let url = "";
+  if (ctx) {
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `${Math.floor(size * 0.82)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+    ctx.fillText(emoji, size / 2, size / 2 + size * 0.04);
+    url = canvas.toDataURL("image/png");
+  }
+  emojiPngCache.set(code, url);
+  return url;
+}
+Font.registerEmojiSource({
+  builder: emojiToPngDataUrl,
+  withVariationSelectors: true,
+});
 
 interface PhotoGridProps {
   immichConfig: ImmichConfig;
