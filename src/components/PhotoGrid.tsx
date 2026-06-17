@@ -823,6 +823,18 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     pageAlignments,
   ]);
 
+  // Den globalen "Bild hier ablegen"-Hinweis zuverlässig zurücksetzen — bei JEDEM
+  // Drop/abgebrochenen Drag (Capture, auch wenn ein Kind-Handler stopPropagation nutzt).
+  useEffect(() => {
+    const clear = () => setIsDraggingFile(false);
+    window.addEventListener("drop", clear, true);
+    window.addEventListener("dragend", clear, true);
+    return () => {
+      window.removeEventListener("drop", clear, true);
+      window.removeEventListener("dragend", clear, true);
+    };
+  }, []);
+
   // Phase 3: resolve the DOM target for the Moveable handles (selected overlay element).
   useEffect(() => {
     if (mode !== "preview" || !selectedElementId || editingTextId) {
@@ -1302,11 +1314,17 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     <div
       onDragOver={(e) => {
         if (mode !== "preview") return;
+        if (!Array.from(e.dataTransfer.types).includes("Files")) return;
         e.preventDefault();
         setIsDraggingFile(true);
       }}
       onDragLeave={(e) => {
-        if (e.currentTarget === e.target) setIsDraggingFile(false);
+        if (
+          !e.relatedTarget ||
+          !e.currentTarget.contains(e.relatedTarget as Node)
+        ) {
+          setIsDraggingFile(false);
+        }
       }}
       onDrop={(e) => {
         if (mode !== "preview") return;
@@ -2374,6 +2392,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     <img
                       src={titlePage.imageSrc}
                       className="w-full h-full object-contain"
+                      draggable={false}
                     />
                   ) : (
                     <label className="w-full h-full border-2 border-dashed border-stone-300 rounded flex items-center justify-center text-center px-4 text-sm text-stone-400 cursor-pointer hover:bg-stone-50">

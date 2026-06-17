@@ -376,6 +376,7 @@ export function WebElement({
         className="object-cover w-full h-full"
         style={isLeftRight ? { width: `${imageWidth}px`, flexShrink: 0 } : undefined}
         loading="lazy"
+        draggable={false}
       />
 
       {/* Datum */}
