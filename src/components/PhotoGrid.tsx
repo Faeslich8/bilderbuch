@@ -32,6 +32,7 @@ import {
   type AlbumConfig,
   type PageBackground,
   type TitlePageConfig,
+  type ExtraPage,
 } from "../utils/albumConfig";
 import { toPoints, screenToLayoutPx } from "../utils/units";
 import {
@@ -269,6 +270,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const [titlePage, setTitlePage] = useState<TitlePageConfig | null>(
     initialConfig.titlePage,
   );
+  const [extraPages, setExtraPages] = useState<ExtraPage[]>(
+    initialConfig.extraPages,
+  );
 
   // Create dynamic styles based on current fontSize
   const pdfStyles = useMemo(() => createDynamicStyles(fontSize), [fontSize]);
@@ -413,7 +417,12 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       pageAlignments: Object.fromEntries(pageAlignments),
       excludedAssetIds: Array.from(excludedAssetIds),
     };
-    saveAlbumConfig(album.id, { ...config, overlayElements, titlePage });
+    saveAlbumConfig(album.id, {
+      ...config,
+      overlayElements,
+      titlePage,
+      extraPages,
+    });
   }, [
     album.id,
     pageSize,
@@ -436,6 +445,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     overlayElements,
     excludedAssetIds,
     titlePage,
+    extraPages,
     isPageWidthValid,
     isPageHeightValid,
     isMarginValid,
@@ -636,7 +646,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     if (data) setTitlePage((p) => (p ? { ...p, imageSrc: data.src } : p));
   };
 
-  const handleInsertImage = (asset: AssetResponseDto) => {
+  const handleInsertImage = (asset: AssetResponseDto, pageKey = "1") => {
     const naturalW = asset.exifInfo?.exifImageWidth || 1;
     const naturalH = asset.exifInfo?.exifImageHeight || 1;
     const ratio =
@@ -653,14 +663,17 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     });
     setOverlayElements((prev) => ({
       ...prev,
-      ["1"]: [...(prev["1"] ?? []), el],
+      [pageKey]: [...(prev[pageKey] ?? []), el],
     }));
     setSelectedElementId(el.id);
     setShowImagePicker(false);
   };
 
   // Externe Bilddateien (Upload oder Drag & Drop) als freie Bild-Elemente einfügen.
-  const handleInsertImageFiles = async (files: FileList | File[]) => {
+  const handleInsertImageFiles = async (
+    files: FileList | File[],
+    pageKey = "1",
+  ) => {
     const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
     for (const file of list) {
       let data: { src: string; width: number; height: number } | null = null;
@@ -684,7 +697,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       });
       setOverlayElements((prev) => ({
         ...prev,
-        ["1"]: [...(prev["1"] ?? []), el],
+        [pageKey]: [...(prev[pageKey] ?? []), el],
       }));
       setSelectedElementId(el.id);
     }
@@ -692,7 +705,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   };
 
   // Phase 5: place a free text field (centered on page 1, then editable/movable).
-  const handleInsertText = () => {
+  const handleInsertText = (pageKey = "1") => {
     const width = 1200;
     const height = 320;
     const el = createTextElement({
@@ -705,12 +718,12 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     });
     setOverlayElements((prev) => ({
       ...prev,
-      ["1"]: [...(prev["1"] ?? []), el],
+      [pageKey]: [...(prev[pageKey] ?? []), el],
     }));
     setSelectedElementId(el.id);
   };
 
-  const handleInsertShape = () => {
+  const handleInsertShape = (pageKey = "1") => {
     const size = 600;
     const el = createShapeElement({
       x: Math.round((validPageWidth - size) / 2),
@@ -720,12 +733,12 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     });
     setOverlayElements((prev) => ({
       ...prev,
-      ["1"]: [...(prev["1"] ?? []), el],
+      [pageKey]: [...(prev[pageKey] ?? []), el],
     }));
     setSelectedElementId(el.id);
   };
 
-  const handleInsertEmoji = (emoji: string) => {
+  const handleInsertEmoji = (emoji: string, pageKey = "1") => {
     const size = 400;
     const el = createEmojiElement(emoji, {
       x: Math.round((validPageWidth - size) / 2),
@@ -735,7 +748,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     });
     setOverlayElements((prev) => ({
       ...prev,
-      ["1"]: [...(prev["1"] ?? []), el],
+      [pageKey]: [...(prev[pageKey] ?? []), el],
     }));
     setSelectedElementId(el.id);
     setEmojiPickerOpen(false);
@@ -1008,6 +1021,249 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const titleDisplayH = toPoints(validPageHeight);
   const titleTextColor = pageBackground === "darkbrown" ? "#f5f0e6" : "#1c1917";
 
+  // Overlay-Ebene (freie Elemente) einer Seite — für Auto- UND Leerseiten,
+  // adressiert über den jeweiligen pageKey (Seitennummer bzw. Leerseiten-ID).
+  const renderOverlay = (pageKey: string) =>
+    (overlayElements[pageKey] ?? []).map((el) => (
+      <div
+        key={el.id}
+        data-overlay-id={el.id}
+        className={`absolute overflow-hidden cursor-move ${
+          selectedElementId === el.id
+            ? "outline outline-2 outline-primary-500"
+            : ""
+        }`}
+        style={{ ...elementBoxStyle(el), zIndex: 40 + el.zIndex }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setSelectedElementId(el.id);
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          if (isTextElement(el)) {
+            setSelectedElementId(el.id);
+            setEditingTextId(el.id);
+          }
+        }}
+      >
+        {isImageElement(el) ? (
+          <WebElement
+            element={el}
+            ctx={{
+              imageUrl:
+                el.src ??
+                `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
+              descPosition: "bottom",
+              styles: webStyles,
+            }}
+          />
+        ) : isTextElement(el) ? (
+          editingTextId === el.id ? (
+            <textarea
+              autoFocus
+              value={el.text}
+              onChange={(ev) =>
+                updateTextElement(el.id, () => ({ text: ev.target.value }))
+              }
+              onBlur={() => setEditingTextId(null)}
+              onKeyDown={(ev) => {
+                if (ev.key === "Escape")
+                  (ev.target as HTMLTextAreaElement).blur();
+              }}
+              onClick={(ev) => ev.stopPropagation()}
+              className="w-full h-full resize-none border-0 outline-none bg-transparent overflow-hidden"
+              style={{
+                fontFamily: el.fontFamily,
+                fontSize: `${el.fontSize}px`,
+                color: el.color,
+                textAlign: el.align,
+                fontWeight: el.fontWeight,
+                fontStyle: el.italic ? "italic" : undefined,
+                lineHeight: 1.25,
+                padding: 4,
+              }}
+            />
+          ) : (
+            <WebTextElement element={el} />
+          )
+        ) : isShapeElement(el) ? (
+          <WebShapeElement element={el} />
+        ) : isEmojiElement(el) ? (
+          <WebEmojiElement element={el} />
+        ) : null}
+      </div>
+    ));
+
+  // PDF-Overlay-Ebene einer Seite.
+  const renderPdfOverlay = (pageKey: string) =>
+    (overlayElements[pageKey] ?? []).map((el) =>
+      isImageElement(el) ? (
+        <PdfElement
+          key={el.id}
+          element={el}
+          ctx={{
+            imageUrl:
+              el.src ??
+              `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
+            descPosition: "bottom",
+            styles: pdfStyles,
+          }}
+        />
+      ) : isTextElement(el) ? (
+        <PdfTextElement key={el.id} element={el} />
+      ) : isShapeElement(el) ? (
+        <PdfShapeElement key={el.id} element={el} />
+      ) : isEmojiElement(el) ? (
+        <PdfEmojiElement key={el.id} element={el} />
+      ) : null,
+    );
+
+  // Leerseiten verwalten.
+  const addBlankPage = () =>
+    setExtraPages((prev) => [
+      ...prev,
+      { id: `extra-${crypto.randomUUID()}`, afterPage: pages.length },
+    ]);
+  const deleteExtraPage = (id: string) => {
+    setExtraPages((prev) => prev.filter((ep) => ep.id !== id));
+    setOverlayElements((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setSelectedElementId(null);
+  };
+  const moveExtraPage = (id: string, dir: number) =>
+    setExtraPages((prev) =>
+      prev.map((ep) =>
+        ep.id === id
+          ? {
+              ...ep,
+              afterPage: Math.max(0, Math.min(pages.length, ep.afterPage + dir)),
+            }
+          : ep,
+      ),
+    );
+
+  // Seiten-Reihenfolge: Auto-Seiten mit Leerseiten (per afterPage) verschränkt.
+  type SeqItem =
+    | { kind: "auto"; page: (typeof pages)[number] }
+    | { kind: "blank"; extra: ExtraPage };
+  const pageSequence = useMemo<SeqItem[]>(() => {
+    const byAnchor = new Map<number, ExtraPage[]>();
+    for (const ep of extraPages) {
+      const arr = byAnchor.get(ep.afterPage) ?? [];
+      arr.push(ep);
+      byAnchor.set(ep.afterPage, arr);
+    }
+    const seq: SeqItem[] = [];
+    for (const ep of byAnchor.get(0) ?? [])
+      seq.push({ kind: "blank", extra: ep });
+    const lastNum = pages.length ? pages[pages.length - 1].pageNumber : 0;
+    for (const page of pages) {
+      seq.push({ kind: "auto", page });
+      for (const ep of byAnchor.get(page.pageNumber) ?? [])
+        seq.push({ kind: "blank", extra: ep });
+    }
+    for (const [anchor, eps] of byAnchor) {
+      if (anchor !== 0 && anchor > lastNum)
+        for (const ep of eps) seq.push({ kind: "blank", extra: ep });
+    }
+    return seq;
+  }, [pages, extraPages]);
+
+  // Web-Render einer Leerseite (Kopf mit Steuerung + Canvas mit Overlay).
+  const renderBlankPageWeb = (extra: ExtraPage) => (
+    <div key={extra.id} className="relative mb-10">
+      <div className="mb-2 flex flex-wrap items-center justify-center gap-1.5">
+        <span className="px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
+          Leere Seite
+        </span>
+        <button
+          onClick={() => moveExtraPage(extra.id, -1)}
+          className="text-xs px-2 py-1 bg-white border border-stone-300 rounded hover:bg-stone-50"
+          title="Eine Position nach vorne"
+        >
+          ←
+        </button>
+        <button
+          onClick={() => moveExtraPage(extra.id, 1)}
+          className="text-xs px-2 py-1 bg-white border border-stone-300 rounded hover:bg-stone-50"
+          title="Eine Position nach hinten"
+        >
+          →
+        </button>
+        <button
+          onClick={() => handleInsertText(extra.id)}
+          className="text-xs px-2 py-1 bg-white border border-stone-300 rounded hover:bg-stone-50"
+        >
+          + Text
+        </button>
+        <button
+          onClick={() => handleInsertShape(extra.id)}
+          className="text-xs px-2 py-1 bg-white border border-stone-300 rounded hover:bg-stone-50"
+        >
+          + Form
+        </button>
+        <label className="text-xs px-2 py-1 bg-white border border-stone-300 rounded hover:bg-stone-50 cursor-pointer">
+          + Foto
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files)
+                handleInsertImageFiles(e.target.files, extra.id);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        <button
+          onClick={() => deleteExtraPage(extra.id)}
+          className="text-xs px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded"
+        >
+          Entfernen
+        </button>
+      </div>
+      <div
+        className="relative shadow-lg mx-auto border border-stone-200"
+        style={{
+          width: `${titleDisplayW}px`,
+          height: `${titleDisplayH}px`,
+          ...webPageBackgroundStyle(pageBackground),
+        }}
+        onClick={() => setSelectedElementId(null)}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.dataTransfer.files?.length)
+            handleInsertImageFiles(e.dataTransfer.files, extra.id);
+        }}
+      >
+        {renderOverlay(extra.id)}
+      </div>
+    </div>
+  );
+
+  // PDF-Render einer Leerseite.
+  const renderBlankPagePdf = (extra: ExtraPage) => (
+    <Page
+      key={extra.id}
+      size={{
+        width: toPoints(titlePageWidthPx),
+        height: toPoints(validPageHeight),
+      }}
+      style={[staticStyles.page, { backgroundColor: PAGE_BG[pageBackground] }]}
+    >
+      {renderPdfOverlay(extra.id)}
+    </Page>
+  );
+
   // Calculate total logical pages for display purposes
   const totalLogicalPages = combinePages ? pages.length * 2 : pages.length;
 
@@ -1121,6 +1377,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             )}
             {mode === "preview" && (
               <button
+                onClick={addBlankPage}
+                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
+                title="Leere Seite hinzufügen (frei mit Text/Fotos/Formen füllen)"
+              >
+                + Leere Seite
+              </button>
+            )}
+            {mode === "preview" && (
+              <button
                 onClick={() => setShowImagePicker((v) => !v)}
                 className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
                 title="Ein Album-Bild frei auf der Seite platzieren"
@@ -1130,7 +1395,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             )}
             {mode === "preview" && (
               <button
-                onClick={handleInsertText}
+                onClick={() => handleInsertText()}
                 className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
                 title="Freies Textfeld einfügen"
               >
@@ -1139,7 +1404,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             )}
             {mode === "preview" && (
               <button
-                onClick={handleInsertShape}
+                onClick={() => handleInsertShape()}
                 className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
                 title="Freie Form einfügen (Rechteck/Ellipse/Linie)"
               >
@@ -1698,7 +1963,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   )}
                 </Page>
               )}
-              {pages.map((pageData) => {
+              {pageSequence.map((item) => {
+                if (item.kind === "blank")
+                  return renderBlankPagePdf(item.extra);
+                const pageData = item.page;
                 // FIXME: pdfkit (internal of react-pdf) uses 72dpi internally and we downscale everything here;
                 // instead we should produce a high-quality 300 dpi pdf
 
@@ -1799,28 +2067,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         />
                       );
                     })}
-                    {(overlayElements[String(pageData.pageNumber)] ?? []).map(
-                      (el) =>
-                        isImageElement(el) ? (
-                          <PdfElement
-                            key={el.id}
-                            element={el}
-                            ctx={{
-                              imageUrl:
-                                el.src ??
-                                `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
-                              descPosition: "bottom",
-                              styles: pdfStyles,
-                            }}
-                          />
-                        ) : isTextElement(el) ? (
-                          <PdfTextElement key={el.id} element={el} />
-                        ) : isShapeElement(el) ? (
-                          <PdfShapeElement key={el.id} element={el} />
-                        ) : isEmojiElement(el) ? (
-                          <PdfEmojiElement key={el.id} element={el} />
-                        ) : null,
-                    )}
+                    {renderPdfOverlay(String(pageData.pageNumber))}
                   </Page>
                 );
               })}
@@ -2182,7 +2429,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               </div>
             </div>
           )}
-          {pages.map((page) => {
+          {pageSequence.map((item) => {
+            if (item.kind === "blank") return renderBlankPageWeb(item.extra);
+            const page = item.page;
             // Scale down to match PDF dimensions (72 DPI from 300 DPI)
             const displayWidth = toPoints(page.width);
             const displayHeight = toPoints(page.height);
@@ -2736,78 +2985,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     );
                   })}
 
-                  {/* Phase 3: free overlay elements, rendered above the auto layout */}
-                  {(overlayElements[String(page.pageNumber)] ?? []).map((el) => (
-                      <div
-                        key={el.id}
-                        data-overlay-id={el.id}
-                        className={`absolute overflow-hidden cursor-move ${
-                          selectedElementId === el.id
-                            ? "outline outline-2 outline-primary-500"
-                            : ""
-                        }`}
-                        style={{ ...elementBoxStyle(el), zIndex: 40 + el.zIndex }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedElementId(el.id);
-                        }}
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          if (isTextElement(el)) {
-                            setSelectedElementId(el.id);
-                            setEditingTextId(el.id);
-                          }
-                        }}
-                      >
-                        {isImageElement(el) ? (
-                          <WebElement
-                            element={el}
-                            ctx={{
-                              imageUrl:
-                                el.src ??
-                                `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
-                              descPosition: "bottom",
-                              styles: webStyles,
-                            }}
-                          />
-                        ) : isTextElement(el) ? (
-                          editingTextId === el.id ? (
-                            <textarea
-                              autoFocus
-                              value={el.text}
-                              onChange={(ev) =>
-                                updateTextElement(el.id, () => ({
-                                  text: ev.target.value,
-                                }))
-                              }
-                              onBlur={() => setEditingTextId(null)}
-                              onKeyDown={(ev) => {
-                                if (ev.key === "Escape")
-                                  (ev.target as HTMLTextAreaElement).blur();
-                              }}
-                              onClick={(ev) => ev.stopPropagation()}
-                              className="w-full h-full resize-none border-0 outline-none bg-transparent overflow-hidden"
-                              style={{
-                                fontFamily: el.fontFamily,
-                                fontSize: `${el.fontSize}px`,
-                                color: el.color,
-                                textAlign: el.align,
-                                fontWeight: el.fontWeight,
-                                fontStyle: el.italic ? "italic" : undefined,
-                                lineHeight: 1.25,
-                                padding: 4,
-                              }}
-                            />
-                          ) : (
-                            <WebTextElement element={el} />
-                          )
-                        ) : isShapeElement(el) ? (
-                          <WebShapeElement element={el} />
-                        ) : isEmojiElement(el) ? (
-                          <WebEmojiElement element={el} />
-                        ) : null}
-                      </div>
-                    ))}
+                  {/* Freie Elemente über dem Auto-Layout (gemeinsame Overlay-Ebene). */}
+                  {renderOverlay(String(page.pageNumber))}
                 </div>
               </div>
             );

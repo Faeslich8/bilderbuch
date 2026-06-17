@@ -20,6 +20,7 @@ import type {
   Position,
   StoredImageCaption,
   TitlePageConfig,
+  ExtraPage,
 } from "./albumConfig";
 
 const SCHEMA_VERSION = 2 as const;
@@ -110,6 +111,18 @@ function sanitizeTitlePage(raw: unknown): TitlePageConfig | null {
   };
 }
 
+function sanitizeExtraPages(raw: unknown): ExtraPage[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (p): p is ExtraPage =>
+        isPlainObject(p) &&
+        typeof p.id === "string" &&
+        typeof p.afterPage === "number",
+    )
+    .map((p) => ({ id: p.id, afterPage: p.afterPage }));
+}
+
 function pickGlobal(
   raw: Record<string, unknown>,
   fallback: GlobalConfig,
@@ -153,6 +166,7 @@ export function migrateRawAlbumConfig(
       imageCaptions: {},
       excludedAssetIds: [],
       titlePage: null,
+      extraPages: [],
     };
   }
 
@@ -183,6 +197,7 @@ export function migrateRawAlbumConfig(
       imageCaptions: sanitizeImageCaptions(raw.imageCaptions),
       excludedAssetIds,
       titlePage: sanitizeTitlePage(raw.titlePage),
+      extraPages: sanitizeExtraPages(raw.extraPages),
     };
   }
 
@@ -197,5 +212,6 @@ export function migrateRawAlbumConfig(
     imageCaptions: captionsFromDescriptionPositions(raw.descriptionPositions),
     excludedAssetIds,
     titlePage: null,
+    extraPages: [],
   };
 }

@@ -41,6 +41,13 @@ export interface TitlePageConfig {
   subtitle: string;
 }
 
+/** Zusätzliche, frei befüllbare Leerseite (Elemente via overlayElements[id]). */
+export interface ExtraPage {
+  id: string;
+  /** Nach welcher Auto-Seiten-Nummer einsortiert; 0 = ganz vorne. */
+  afterPage: number;
+}
+
 /** Globale Standard-Einstellungen (identisch zum bisherigen Inline-Typ). */
 export interface GlobalConfig {
   // Page settings
@@ -104,6 +111,8 @@ export interface AlbumConfigV2 extends GlobalConfig {
   excludedAssetIds: string[];
   /** Optionales Titelblatt (eigene erste Seite); null = keins. */
   titlePage: TitlePageConfig | null;
+  /** Zusätzliche Leerseiten, einsortiert über afterPage. */
+  extraPages: ExtraPage[];
 }
 
 /**
@@ -257,7 +266,10 @@ export function saveAlbumConfig(
   albumId: string,
   config: AlbumConfig &
     Partial<
-      Pick<AlbumConfigV2, "overlayElements" | "imageCaptions" | "titlePage">
+      Pick<
+        AlbumConfigV2,
+        "overlayElements" | "imageCaptions" | "titlePage" | "extraPages"
+      >
     >,
 ) {
   try {
@@ -288,6 +300,7 @@ export function saveAlbumConfig(
       imageCaptions,
       excludedAssetIds: config.excludedAssetIds ?? [],
       titlePage: config.titlePage ?? null,
+      extraPages: config.extraPages ?? [],
     };
 
     localStorage.setItem(albumKey(albumId), JSON.stringify(v2));
