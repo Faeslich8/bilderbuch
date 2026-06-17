@@ -19,6 +19,7 @@ import type {
   PageAlignment,
   Position,
   StoredImageCaption,
+  TitlePageConfig,
 } from "./albumConfig";
 
 const SCHEMA_VERSION = 2 as const;
@@ -100,6 +101,15 @@ function captionsFromDescriptionPositions(
   return out;
 }
 
+function sanitizeTitlePage(raw: unknown): TitlePageConfig | null {
+  if (!isPlainObject(raw)) return null;
+  return {
+    imageSrc: typeof raw.imageSrc === "string" ? raw.imageSrc : undefined,
+    title: typeof raw.title === "string" ? raw.title : "",
+    subtitle: typeof raw.subtitle === "string" ? raw.subtitle : "",
+  };
+}
+
 function pickGlobal(
   raw: Record<string, unknown>,
   fallback: GlobalConfig,
@@ -142,6 +152,7 @@ export function migrateRawAlbumConfig(
       overlayElements: {},
       imageCaptions: {},
       excludedAssetIds: [],
+      titlePage: null,
     };
   }
 
@@ -171,6 +182,7 @@ export function migrateRawAlbumConfig(
       overlayElements: sanitizeOverlayElements(raw.overlayElements),
       imageCaptions: sanitizeImageCaptions(raw.imageCaptions),
       excludedAssetIds,
+      titlePage: sanitizeTitlePage(raw.titlePage),
     };
   }
 
@@ -184,5 +196,6 @@ export function migrateRawAlbumConfig(
     overlayElements: {},
     imageCaptions: captionsFromDescriptionPositions(raw.descriptionPositions),
     excludedAssetIds,
+    titlePage: null,
   };
 }

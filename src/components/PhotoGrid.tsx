@@ -10,6 +10,8 @@ import {
   Document,
   Page,
   View,
+  Text,
+  Image as PdfImage,
   StyleSheet,
   Font,
   Svg,
@@ -29,6 +31,7 @@ import {
   type Position,
   type AlbumConfig,
   type PageBackground,
+  type TitlePageConfig,
 } from "../utils/albumConfig";
 import { toPoints, screenToLayoutPx } from "../utils/units";
 import {
@@ -64,6 +67,7 @@ import Moveable from "react-moveable";
 import type { ImmichConfig } from "./ConnectionForm";
 import roboto400 from "@fontsource/roboto/files/roboto-latin-400-normal.woff?url";
 import roboto500 from "@fontsource/roboto/files/roboto-latin-500-normal.woff?url";
+import roboto700 from "@fontsource/roboto/files/roboto-latin-700-normal.woff?url";
 import Icon from "@mdi/react";
 import {
   mdiFormatAlignLeft,
@@ -78,6 +82,7 @@ Font.register({
   fonts: [
     { src: roboto400, fontWeight: 400 },
     { src: roboto500, fontWeight: 500 },
+    { src: roboto700, fontWeight: 700 },
   ],
 });
 
@@ -261,6 +266,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const [pageBackground, setPageBackground] = useState(
     initialConfig.pageBackground,
   );
+  const [titlePage, setTitlePage] = useState<TitlePageConfig | null>(
+    initialConfig.titlePage,
+  );
 
   // Create dynamic styles based on current fontSize
   const pdfStyles = useMemo(() => createDynamicStyles(fontSize), [fontSize]);
@@ -405,7 +413,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       pageAlignments: Object.fromEntries(pageAlignments),
       excludedAssetIds: Array.from(excludedAssetIds),
     };
-    saveAlbumConfig(album.id, { ...config, overlayElements });
+    saveAlbumConfig(album.id, { ...config, overlayElements, titlePage });
   }, [
     album.id,
     pageSize,
@@ -427,6 +435,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     pageAlignments,
     overlayElements,
     excludedAssetIds,
+    titlePage,
     isPageWidthValid,
     isPageHeightValid,
     isMarginValid,
@@ -620,6 +629,13 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   };
 
   // Phase 4: place an album image as a free element (centered on page 1, then movable).
+  // Titelblatt-Foto aus einer lokalen Datei (Klick/Drag&Drop) setzen.
+  const setTitleImageFromFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    const data = await fileToImageElementData(file).catch(() => null);
+    if (data) setTitlePage((p) => (p ? { ...p, imageSrc: data.src } : p));
+  };
+
   const handleInsertImage = (asset: AssetResponseDto) => {
     const naturalW = asset.exifInfo?.exifImageWidth || 1;
     const naturalH = asset.exifInfo?.exifImageHeight || 1;
@@ -986,6 +1002,12 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   // Determine pageLayout based on combinePages setting
   const pageLayout = combinePages ? "singlePage" : "twoPageLeft";
 
+  // Titelblatt-Maße (eigene erste Seite, gleiche Breite wie die Auto-Seiten).
+  const titlePageWidthPx = combinePages ? validPageWidth * 2 : validPageWidth;
+  const titleDisplayW = toPoints(titlePageWidthPx);
+  const titleDisplayH = toPoints(validPageHeight);
+  const titleTextColor = pageBackground === "darkbrown" ? "#f5f0e6" : "#1c1917";
+
   // Calculate total logical pages for display purposes
   const totalLogicalPages = combinePages ? pages.length * 2 : pages.length;
 
@@ -1086,6 +1108,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 title="Leeren Gestaltungsraum einfügen (drückt Bilder weg)"
               >
                 + Leerraum
+              </button>
+            )}
+            {mode === "preview" && !titlePage && (
+              <button
+                onClick={() => setTitlePage({ title: "", subtitle: "" })}
+                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
+                title="Titelblatt mit großem Foto, Titel und Untertitel erstellen"
+              >
+                + Titelblatt
               </button>
             )}
             {mode === "preview" && (
@@ -1608,6 +1639,65 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
         >
           <PDFViewer width="100%" height="100%" showToolbar={true}>
             <Document pageLayout={pageLayout}>
+              {titlePage && (
+                <Page
+                  size={{
+                    width: toPoints(titlePageWidthPx),
+                    height: toPoints(validPageHeight),
+                  }}
+                  style={[
+                    staticStyles.page,
+                    { backgroundColor: PAGE_BG[pageBackground] },
+                  ]}
+                >
+                  {titlePage.title.trim().length > 0 && (
+                    <Text
+                      style={{
+                        position: "absolute",
+                        top: toPoints(validPageHeight) * 0.08,
+                        left: "8%",
+                        width: "84%",
+                        textAlign: "center",
+                        fontSize: toPoints(validPageHeight) * 0.06,
+                        fontFamily: "Roboto",
+                        fontWeight: 700,
+                        color: titleTextColor,
+                      }}
+                    >
+                      {titlePage.title}
+                    </Text>
+                  )}
+                  {titlePage.imageSrc && (
+                    <PdfImage
+                      src={titlePage.imageSrc}
+                      style={{
+                        position: "absolute",
+                        top: toPoints(validPageHeight) * 0.26,
+                        left: "18%",
+                        width: "64%",
+                        height: toPoints(validPageHeight) * 0.48,
+                        objectFit: "contain",
+                      }}
+                    />
+                  )}
+                  {titlePage.subtitle.trim().length > 0 && (
+                    <Text
+                      style={{
+                        position: "absolute",
+                        top: toPoints(validPageHeight) * 0.78,
+                        left: "12%",
+                        width: "76%",
+                        textAlign: "center",
+                        fontSize: toPoints(validPageHeight) * 0.03,
+                        fontFamily: "Roboto",
+                        color: titleTextColor,
+                      }}
+                    >
+                      {titlePage.subtitle}
+                    </Text>
+                  )}
+                </Page>
+              )}
               {pages.map((pageData) => {
                 // FIXME: pdfkit (internal of react-pdf) uses 72dpi internally and we downscale everything here;
                 // instead we should produce a high-quality 300 dpi pdf
@@ -1971,6 +2061,125 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               >
                 Abwählen
               </button>
+            </div>
+          )}
+          {titlePage && (
+            <div className="relative mb-10">
+              <div className="mb-2 flex items-center justify-center gap-2">
+                <span className="px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
+                  Titelblatt
+                </span>
+                <button
+                  onClick={() => setTitlePage(null)}
+                  className="text-xs px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded"
+                  title="Titelblatt entfernen"
+                >
+                  Entfernen
+                </button>
+              </div>
+              <div
+                className="relative shadow-lg mx-auto border border-stone-200"
+                style={{
+                  width: `${titleDisplayW}px`,
+                  height: `${titleDisplayH}px`,
+                  ...webPageBackgroundStyle(pageBackground),
+                }}
+              >
+                <textarea
+                  value={titlePage.title}
+                  onChange={(e) =>
+                    setTitlePage((p) => (p ? { ...p, title: e.target.value } : p))
+                  }
+                  placeholder="Titel"
+                  className="absolute resize-none border-0 outline-none bg-transparent text-center overflow-hidden"
+                  style={{
+                    top: `${titleDisplayH * 0.08}px`,
+                    left: "8%",
+                    width: "84%",
+                    height: `${titleDisplayH * 0.14}px`,
+                    fontSize: `${titleDisplayH * 0.06}px`,
+                    fontWeight: 700,
+                    lineHeight: 1.1,
+                    color: titleTextColor,
+                    fontFamily: "Roboto",
+                  }}
+                />
+                <div
+                  className="absolute flex items-center justify-center overflow-hidden"
+                  style={{
+                    top: `${titleDisplayH * 0.26}px`,
+                    left: "18%",
+                    width: "64%",
+                    height: `${titleDisplayH * 0.48}px`,
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const f = e.dataTransfer.files?.[0];
+                    if (f) setTitleImageFromFile(f);
+                  }}
+                >
+                  {titlePage.imageSrc ? (
+                    <img
+                      src={titlePage.imageSrc}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <label className="w-full h-full border-2 border-dashed border-stone-300 rounded flex items-center justify-center text-center px-4 text-sm text-stone-400 cursor-pointer hover:bg-stone-50">
+                      Foto wählen oder hierher ziehen
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) setTitleImageFromFile(f);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+                {titlePage.imageSrc && (
+                  <label className="absolute bottom-2 right-2 text-xs px-2 py-0.5 bg-white/85 border border-stone-300 rounded cursor-pointer hover:bg-white">
+                    Foto ändern
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) setTitleImageFromFile(f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                )}
+                <textarea
+                  value={titlePage.subtitle}
+                  onChange={(e) =>
+                    setTitlePage((p) =>
+                      p ? { ...p, subtitle: e.target.value } : p,
+                    )
+                  }
+                  placeholder="Untertitel"
+                  className="absolute resize-none border-0 outline-none bg-transparent text-center overflow-hidden"
+                  style={{
+                    top: `${titleDisplayH * 0.78}px`,
+                    left: "12%",
+                    width: "76%",
+                    height: `${titleDisplayH * 0.1}px`,
+                    fontSize: `${titleDisplayH * 0.03}px`,
+                    lineHeight: 1.2,
+                    color: titleTextColor,
+                    fontFamily: "Roboto",
+                  }}
+                />
+              </div>
             </div>
           )}
           {pages.map((page) => {

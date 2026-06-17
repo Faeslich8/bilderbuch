@@ -33,6 +33,14 @@ export type PageAlignment = "left" | "center" | "right";
 /** Seitenhintergrund des ganzen Buchs. */
 export type PageBackground = "white" | "cream" | "darkbrown";
 
+/** Titelblatt-Inhalt (eigene, vorangestellte erste Seite). */
+export interface TitlePageConfig {
+  /** Data-URL des Titelfotos (optional). */
+  imageSrc?: string;
+  title: string;
+  subtitle: string;
+}
+
 /** Globale Standard-Einstellungen (identisch zum bisherigen Inline-Typ). */
 export interface GlobalConfig {
   // Page settings
@@ -94,6 +102,8 @@ export interface AlbumConfigV2 extends GlobalConfig {
   imageCaptions: Record<string, StoredImageCaption>;
   /** Asset-IDs, die aus dem Buch ausgeschlossen sind (bleiben in Immich). */
   excludedAssetIds: string[];
+  /** Optionales Titelblatt (eigene erste Seite); null = keins. */
+  titlePage: TitlePageConfig | null;
 }
 
 /**
@@ -246,7 +256,9 @@ export function loadAlbumConfig(albumId: string): LoadedAlbumConfig {
 export function saveAlbumConfig(
   albumId: string,
   config: AlbumConfig &
-    Partial<Pick<AlbumConfigV2, "overlayElements" | "imageCaptions">>,
+    Partial<
+      Pick<AlbumConfigV2, "overlayElements" | "imageCaptions" | "titlePage">
+    >,
 ) {
   try {
     // imageCaptions: bevorzugt explizit gesetzte, sonst aus descriptionPositions ableiten.
@@ -275,6 +287,7 @@ export function saveAlbumConfig(
       overlayElements: config.overlayElements ?? {},
       imageCaptions,
       excludedAssetIds: config.excludedAssetIds ?? [],
+      titlePage: config.titlePage ?? null,
     };
 
     localStorage.setItem(albumKey(albumId), JSON.stringify(v2));
