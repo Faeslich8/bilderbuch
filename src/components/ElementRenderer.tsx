@@ -639,9 +639,36 @@ export function WebEmojiElement({ element }: { element: EmojiElement }) {
   );
 }
 
-/** PDF: Emoji über die lokal gebündelte Noto-Emoji-Schrift (offline, S/W). */
+/**
+ * PDF: Emoji als Bild. Das Glyph wird per Canvas aus der OS-Emoji-Schrift in ein
+ * Farb-PNG gerendert und als <Image> eingebettet — zuverlässig (statt über die
+ * Text-Emoji-Substitution, die im Export nicht greift) und farbig wie im Editor.
+ */
+const emojiPngCache = new Map<string, string>();
+function emojiToPng(emoji: string): string {
+  const cached = emojiPngCache.get(emoji);
+  if (cached !== undefined) return cached;
+  let url = "";
+  if (typeof document !== "undefined") {
+    const size = 256;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `${Math.floor(size * 0.82)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+      ctx.fillText(emoji, size / 2, size / 2 + size * 0.04);
+      url = canvas.toDataURL("image/png");
+    }
+  }
+  emojiPngCache.set(emoji, url);
+  return url;
+}
+
 export function PdfEmojiElement({ element }: { element: EmojiElement }) {
-  const size = toPoints(Math.min(element.width, element.height)) * 0.85;
+  const png = emojiToPng(element.emoji);
   return (
     <View
       style={[
@@ -650,7 +677,12 @@ export function PdfEmojiElement({ element }: { element: EmojiElement }) {
         { alignItems: "center", justifyContent: "center" },
       ]}
     >
-      <Text style={{ fontSize: size }}>{element.emoji}</Text>
+      {png ? (
+        <Image
+          src={png}
+          style={{ width: "100%", height: "100%", objectFit: "contain" }}
+        />
+      ) : null}
     </View>
   );
 }
