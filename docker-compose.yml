@@ -7,6 +7,7 @@ services:
     environment:
       # Basis-URL deines Immich-Servers OHNE abschließenden Slash, erreichbar
       # aus dem Container (z. B. der Service-Name, wenn Immich im selben
-      # Docker-Netz läuft, oder die LAN-/Domain-Adresse).
-      IMMICH_URL: "http://immich-server:2283"
+      # Docker-Netz läuft, oder die LAN-/Domain-Adresse). In Portainer als
+      # Environment-Variable IMMICH_URL setzbar; sonst greift der Default.
+      IMMICH_URL: "${IMMICH_URL:-http://immich-server:2283}"
     restart: unless-stopped
