@@ -158,9 +158,24 @@ server {
 
 Reload nginx, for example using `sudo nginx -s reload`
 
-#### Option 3: Docker (Coming Soon)
+#### Option 3: Docker
 
-Docker support is planned for easier deployment.
+A `Dockerfile` and `docker-compose.yml` are included. The image builds the static
+site and serves it with nginx, which also **reverse-proxies `/api` to your Immich
+server** — so the browser talks same-origin and **no CORS configuration is needed**.
+
+```bash
+# Set IMMICH_URL (your Immich base URL) in docker-compose.yml, then:
+docker compose up --build -d
+```
+
+The app is then available on <http://localhost:8080>. Only the API key is entered in
+the UI; the server URL is fixed to the proxied `/api`.
+
+`IMMICH_URL` is the base URL of your Immich server **without a trailing slash**,
+reachable from inside the container — e.g. a service name on the same Docker network
+(`http://immich-server:2283`) or a LAN/domain address. Override it at runtime with
+`-e IMMICH_URL=...` (or the `environment:` block in compose).
 
 ### Using Immich Book
 

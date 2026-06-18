@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.github
+.direnv
+.env
+*.local
+flake.nix
+flake.lock
+.envrc

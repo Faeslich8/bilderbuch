@@ -1,0 +1,12 @@
+services:
+  immich-book:
+    build: .
+    image: immich-book
+    ports:
+      - "8080:80"
+    environment:
+      # Basis-URL deines Immich-Servers OHNE abschließenden Slash, erreichbar
+      # aus dem Container (z. B. der Service-Name, wenn Immich im selben
+      # Docker-Netz läuft, oder die LAN-/Domain-Adresse).
+      IMMICH_URL: "http://immich-server:2283"
+    restart: unless-stopped
