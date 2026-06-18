@@ -1,0 +1,19 @@
+# Stack für den Portainer-Web-Editor: nutzt das fertig gebaute Image aus der
+# GitHub Container Registry (gebaut von .github/workflows/docker-image.yml).
+# Kein Build-Kontext nötig -> einfach den Inhalt in den Portainer-Editor kopieren.
+#
+# Voraussetzungen:
+#  - Der Workflow lief mindestens einmal (Tab "Actions"), sodass das Image existiert.
+#  - Das Paket ghcr.io/faeslich8/immich-book ist entweder auf "public" gestellt
+#    ODER in Portainer ist eine Registry-Anmeldung für ghcr.io hinterlegt
+#    (Username = GitHub-Name, Passwort = PAT mit Scope read:packages).
+services:
+  immich-book:
+    image: ghcr.io/faeslich8/immich-book:latest
+    ports:
+      - "8080:80"
+    environment:
+      # Basis-URL deines Immich-Servers OHNE Slash am Ende, vom Container erreichbar
+      # (LAN-IP oder Service-Name im selben Docker-Netz).
+      IMMICH_URL: "http://homeservierer:4000"
+    restart: unless-stopped

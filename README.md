@@ -177,6 +177,13 @@ reachable from inside the container — e.g. a service name on the same Docker n
 (`http://immich-server:2283`) or a LAN/domain address. Override it at runtime with
 `-e IMMICH_URL=...` (or the `environment:` block in compose).
 
+**Pre-built image (Portainer web editor):** pushes to `main` build and publish the
+image to `ghcr.io/<owner>/immich-book:latest` via `.github/workflows/docker-image.yml`.
+You can then deploy without any build context — paste `portainer-stack.yml` into
+Portainer's stack editor (or any compose that uses
+`image: ghcr.io/<owner>/immich-book:latest`). Make the package public, or add ghcr.io
+registry credentials in Portainer, so it can be pulled.
+
 ### Using Immich Book
 
 1. **Connect to Immich**
