@@ -15,7 +15,13 @@ server {
     # Immich-API gleich-origin durchreichen → kein CORS im Browser nötig.
     # /api/... wird unverändert an ${IMMICH_URL}/api/... weitergereicht.
     location /api/ {
-        proxy_pass ${IMMICH_URL};
+        # Upstream als Variable + Resolver → nginx löst den Host ERST zur
+        # Laufzeit auf (Docker-DNS). Dadurch startet der Container auch, wenn
+        # der Immich-Host beim Boot (noch) nicht auflösbar/erreichbar ist —
+        # statt mit "host not found in upstream" abzustürzen.
+        resolver 127.0.0.11 ipv6=off valid=30s;
+        set $immich_upstream "${IMMICH_URL}";
+        proxy_pass $immich_upstream$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
