@@ -14,6 +14,6 @@ services:
       - "8080:80"
     environment:
       # Basis-URL deines Immich-Servers OHNE Slash am Ende, vom Container erreichbar
-      # (LAN-IP oder Service-Name im selben Docker-Netz).
-      IMMICH_URL: "http://homeservierer:4000"
+      # (LAN-IP oder Service-Name im selben Docker-Netz). Platzhalter — anpassen:
+      IMMICH_URL: "http://immich-server:2283"
     restart: unless-stopped
