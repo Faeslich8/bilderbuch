@@ -161,21 +161,16 @@ Reload nginx, for example using `sudo nginx -s reload`
 #### Option 3: Docker
 
 A `Dockerfile` and `docker-compose.yml` are included. The image builds the static
-site and serves it with nginx, which also **reverse-proxies `/api` to your Immich
-server** — so the browser talks same-origin and **no CORS configuration is needed**.
+site and serves it with nginx. The browser connects **directly** to your Immich
+server (same as the hosted version), so you must **allow CORS** for this app's origin
+on your Immich server — see [Enable CORS](#enable-cors-on-your-immich-server).
 
 ```bash
-# Set IMMICH_URL (your Immich base URL) in docker-compose.yml, then:
 docker compose up --build -d
 ```
 
-The app is then available on <http://localhost:8080>. Only the API key is entered in
-the UI; the server URL is fixed to the proxied `/api`.
-
-`IMMICH_URL` is the base URL of your Immich server **without a trailing slash**,
-reachable from inside the container — e.g. a service name on the same Docker network
-(`http://immich-server:2283`) or a LAN/domain address. Override it at runtime with
-`-e IMMICH_URL=...` (or the `environment:` block in compose).
+The app is then available on <http://localhost:8080> (change the host port in
+`docker-compose.yml` if you like). Enter your Immich server URL and API key in the UI.
 
 **Pre-built image (Portainer web editor):** pushes to `main` build and publish the
 image to `ghcr.io/<owner>/immich-book:latest` via `.github/workflows/docker-image.yml`.

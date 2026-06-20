@@ -1,32 +1,13 @@
-# Wird vom offiziellen nginx-Image per envsubst zu /etc/nginx/conf.d/default.conf
-# verarbeitet. Nur Umgebungsvariablen (z. B. ${IMMICH_URL}) werden ersetzt;
-# nginx-Variablen wie $uri/$host bleiben unangetastet.
+# Liefert nur die statische SPA aus. KEIN API-Proxy: der Browser verbindet sich
+# direkt mit dem Immich-Server (Server-URL wird in der App eingegeben). Dafür muss
+# Immich CORS für die Origin dieser App erlauben — siehe README.
 server {
     listen 80;
     server_name _;
     root /usr/share/nginx/html;
     index index.html;
 
-    # SPA: clientseitige Routen auf index.html zurückfallen lassen.
     location / {
         try_files $uri $uri/ /index.html;
-    }
-
-    # Immich-API gleich-origin durchreichen → kein CORS im Browser nötig.
-    # /api/... wird unverändert an ${IMMICH_URL}/api/... weitergereicht.
-    location /api/ {
-        # Upstream als Variable + Resolver → nginx löst den Host ERST zur
-        # Laufzeit auf (Docker-DNS). Dadurch startet der Container auch, wenn
-        # der Immich-Host beim Boot (noch) nicht auflösbar/erreichbar ist —
-        # statt mit "host not found in upstream" abzustürzen.
-        resolver 127.0.0.11 ipv6=off valid=30s;
-        set $immich_upstream "${IMMICH_URL}";
-        proxy_pass $immich_upstream$request_uri;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        client_max_body_size 50m;
     }
 }
