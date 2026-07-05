@@ -33,6 +33,7 @@ import {
   type PageBackground,
   type TitlePageConfig,
   type ExtraPage,
+  type CropPosition,
 } from "../utils/albumConfig";
 import { toPoints, screenToLayoutPx } from "../utils/units";
 import {
@@ -75,6 +76,7 @@ import {
   mdiFormatAlignCenter,
   mdiFormatAlignRight,
   mdiTrashCanOutline,
+  mdiFilePlusOutline,
 } from "@mdi/js";
 
 // Register Roboto font for PDF using local bundled files
@@ -299,6 +301,11 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
         ]),
       ),
   );
+  const [cropPositions, setCropPositions] = useState<
+    Map<string, CropPosition>
+  >(() => new Map(Object.entries(initialConfig.cropPositions)));
+  // Welches Foto sich gerade im Crop-Modus befindet (Bildausschnitt per Drag anpassen).
+  const [croppingAssetId, setCroppingAssetId] = useState<string | null>(null);
 
   // Drag state for reordering
   const [reorderDragState, setReorderDragState] = useState<{
@@ -315,6 +322,17 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     originalAspectRatio: number;
     originalX: number;
     originalWidth: number;
+  } | null>(null);
+
+  // Drag state for crop (object-position) adjustment
+  const [cropDragState, setCropDragState] = useState<{
+    assetId: string;
+    startX: number;
+    startY: number;
+    originalX: number;
+    originalY: number;
+    boxWidth: number;
+    boxHeight: number;
   } | null>(null);
 
   // Phase 3: free-form overlay elements per stable page id (Phase-1 store, now live)
@@ -416,6 +434,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       descriptionPositions: Object.fromEntries(descriptionPositions),
       pageAlignments: Object.fromEntries(pageAlignments),
       excludedAssetIds: Array.from(excludedAssetIds),
+      cropPositions: Object.fromEntries(cropPositions),
     };
     saveAlbumConfig(album.id, {
       ...config,
@@ -444,6 +463,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     pageAlignments,
     overlayElements,
     excludedAssetIds,
+    cropPositions,
     titlePage,
     extraPages,
     isPageWidthValid,
@@ -493,6 +513,35 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       originalAspectRatio: aspectRatio,
       originalX: x,
       originalWidth: width,
+    });
+  };
+
+  // Handle crop (object-position) drag start
+  const handleCropDragStart = (
+    assetId: string,
+    boxWidth: number,
+    boxHeight: number,
+    event: React.MouseEvent,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const current = cropPositions.get(assetId) ?? { x: 50, y: 50 };
+    setCropDragState({
+      assetId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originalX: current.x,
+      originalY: current.y,
+      boxWidth,
+      boxHeight,
+    });
+  };
+
+  const handleResetCrop = (assetId: string) => {
+    setCropPositions((prev) => {
+      const next = new Map(prev);
+      next.delete(assetId);
+      return next;
     });
   };
 
@@ -621,13 +670,21 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
   // Insert / remove a "Leerraum" blocker (a layout placeholder; its position lives in
   // customOrdering, its size in customAspectRatios — both already persisted).
-  const handleAddBlocker = () => {
+  // afterAssetId: direkt hinter dieser Asset-/Blocker-ID einsortieren; ohne Angabe
+  // (oder falls die ID nicht mehr existiert) wie bisher ans Ende anhängen.
+  const handleAddBlocker = (afterAssetId?: string) => {
     const id = `${BLOCKER_PREFIX}${crypto.randomUUID()}`;
     setCustomAspectRatios((prev) => new Map(prev).set(id, 1));
-    setCustomOrdering((prev) => [
-      ...(prev ?? defaultFilteredAssets.map((a) => a.id)),
-      id,
-    ]);
+    setCustomOrdering((prev) => {
+      const base = prev ?? defaultFilteredAssets.map((a) => a.id);
+      const anchorIndex = afterAssetId ? base.indexOf(afterAssetId) : -1;
+      if (anchorIndex === -1) return [...base, id];
+      return [
+        ...base.slice(0, anchorIndex + 1),
+        id,
+        ...base.slice(anchorIndex + 1),
+      ];
+    });
   };
   const handleDeleteBlocker = (id: string) => {
     setCustomOrdering((prev) => (prev ? prev.filter((x) => x !== id) : prev));
@@ -1024,6 +1081,46 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     };
   }, [aspectDragState, contentWidth, margin]);
 
+  // Handle crop (object-position) drag: image follows the mouse, so moving the
+  // cursor right must reveal more of the image's left side (object-position-x sinkt).
+  useEffect(() => {
+    if (!cropDragState) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const deltaX = event.clientX - cropDragState.startX;
+      const deltaY = event.clientY - cropDragState.startY;
+      const deltaPercentX = (deltaX / cropDragState.boxWidth) * 100;
+      const deltaPercentY = (deltaY / cropDragState.boxHeight) * 100;
+
+      const newX = Math.min(
+        100,
+        Math.max(0, cropDragState.originalX - deltaPercentX),
+      );
+      const newY = Math.min(
+        100,
+        Math.max(0, cropDragState.originalY - deltaPercentY),
+      );
+
+      setCropPositions((prev) => {
+        const next = new Map(prev);
+        next.set(cropDragState.assetId, { x: newX, y: newY });
+        return next;
+      });
+    };
+
+    const handleMouseUp = () => {
+      setCropDragState(null);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [cropDragState]);
+
   // Determine pageLayout based on combinePages setting
   const pageLayout = combinePages ? "singlePage" : "twoPageLeft";
 
@@ -1131,10 +1228,12 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     );
 
   // Leerseiten verwalten.
-  const addBlankPage = () =>
+  // afterPage: Anker-Seitenzahl, nach der eingefügt wird; Standard = Ende des Buchs
+  // (bisheriges Verhalten des globalen Toolbar-Buttons "+ Leere Seite").
+  const addBlankPage = (afterPage: number = pages.length) =>
     setExtraPages((prev) => [
       ...prev,
-      { id: `extra-${crypto.randomUUID()}`, afterPage: pages.length },
+      { id: `extra-${crypto.randomUUID()}`, afterPage },
     ]);
   const deleteExtraPage = (id: string) => {
     setExtraPages((prev) => prev.filter((ep) => ep.id !== id));
@@ -1377,9 +1476,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             )}
             {mode === "preview" && (
               <button
-                onClick={handleAddBlocker}
+                onClick={() => handleAddBlocker()}
                 className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
-                title="Leeren Gestaltungsraum einfügen (drückt Bilder weg)"
+                title="Leeren Gestaltungsraum am Ende des Buchs einfügen (drückt Bilder weg)"
               >
                 + Leerraum
               </button>
@@ -1395,9 +1494,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             )}
             {mode === "preview" && (
               <button
-                onClick={addBlankPage}
+                onClick={() => addBlankPage()}
                 className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
-                title="Leere Seite hinzufügen (frei mit Text/Fotos/Formen füllen)"
+                title="Leere Seite am Ende des Buchs hinzufügen (frei mit Text/Fotos/Formen füllen)"
               >
                 + Leere Seite
               </button>
@@ -2081,6 +2180,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                   })
                                 : undefined,
                             styles: pdfStyles,
+                            cropPosition: cropPositions.get(photoBox.asset.id),
                           }}
                         />
                       );
@@ -2595,6 +2695,13 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         </div>
                       </div>
                     )}
+                    <button
+                      onClick={() => addBlankPage(page.pageNumber)}
+                      className="px-2 py-1 text-xs border rounded transition-colors flex items-center bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                      title="Leere Doppelseite nach diesem Spread einfügen"
+                    >
+                      <Icon path={mdiFilePlusOutline} size={0.6} />
+                    </button>
                   </div>
                 ) : (
                   /* Single page mode - center everything */
@@ -2651,6 +2758,13 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       >
                         <Icon path={mdiFormatAlignRight} size={0.6} />
                       </button>
+                      <button
+                        onClick={() => addBlankPage(page.pageNumber)}
+                        className="px-2 py-1 text-xs border rounded transition-colors flex items-center bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                        title="Leerseite nach dieser Seite einfügen"
+                      >
+                        <Icon path={mdiFilePlusOutline} size={0.6} />
+                      </button>
                     </div>
                   </div>
                 )}
@@ -2701,9 +2815,14 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     );
                     const hasDescriptionPositionCustomization =
                       descriptionPositions.has(photoBox.asset.id);
+                    const hasCropCustomization = cropPositions.has(
+                      photoBox.asset.id,
+                    );
                     const isCustomized =
                       hasAspectRatioCustomization ||
-                      hasDescriptionPositionCustomization;
+                      hasDescriptionPositionCustomization ||
+                      hasCropCustomization;
+                    const isCropping = croppingAssetId === photoBox.asset.id;
 
                     // Find global index in filtered assets for drag & drop
                     const globalIndex = filteredAssets.findIndex(
@@ -2807,7 +2926,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     return (
                       <div
                         key={photoBox.asset.id}
-                        className={`absolute overflow-hidden group cursor-move ${isBeingDragged ? "opacity-50" : ""} ${isLeftRight ? "flex" : ""}`}
+                        className={`absolute overflow-hidden group cursor-move ${isBeingDragged ? "opacity-50" : ""} ${isLeftRight ? "flex" : ""} ${isCropping ? "ring-2 ring-primary-500 ring-inset" : ""}`}
                         style={{
                           left: `${toPoints(photoBox.x)}px`,
                           top: `${toPoints(photoBox.y)}px`,
@@ -2815,7 +2934,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           height: `${toPoints(photoBox.height)}px`,
                           flexDirection: "row",
                         }}
-                        draggable
+                        draggable={!isCropping}
                         onDragStart={(e) =>
                           handleReorderDragStart(
                             photoBox.asset.id,
@@ -2856,8 +2975,52 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             styles: webStyles,
                             onLabelClick: (e) =>
                               handleDescriptionClick(photoBox.asset.id, e),
+                            cropPosition: cropPositions.get(photoBox.asset.id),
                           }}
                         />
+
+                        {/* Crop-Modus: transparentes Drag-Overlay + persistente Steuerung */}
+                        {isCropping && (
+                          <>
+                            <div
+                              className="absolute inset-0 z-10 cursor-move"
+                              onMouseDown={(e) =>
+                                handleCropDragStart(
+                                  photoBox.asset.id,
+                                  containerWidth,
+                                  toPoints(photoBox.height),
+                                  e,
+                                )
+                              }
+                            />
+                            <div className="absolute top-2 right-2 z-20 flex gap-1">
+                              {hasCropCustomization && (
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleResetCrop(photoBox.asset.id);
+                                  }}
+                                  className="bg-stone-800/90 hover:bg-stone-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                                  title="Bildausschnitt zurücksetzen"
+                                >
+                                  Zurücksetzen
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setCroppingAssetId(null);
+                                }}
+                                className="bg-primary-600 hover:bg-primary-700 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                                title="Fertig"
+                              >
+                                Fertig
+                              </button>
+                            </div>
+                          </>
+                        )}
 
                         {/* Customization indicators */}
                         {hasAspectRatioCustomization && (
@@ -2878,9 +3041,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             title="Image reordered"
                           />
                         )}
+                        {hasCropCustomization && (
+                          <div
+                            className="absolute top-2 left-11 w-2 h-2 bg-amber-500 rounded-full shadow-lg"
+                            title="Crop customized"
+                          />
+                        )}
 
                         {/* Reset button - shown on hover for customized images */}
-                        {(isCustomized || isReordered) && (
+                        {(isCustomized || isReordered) && !isCropping && (
                           <div
                             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer bg-primary-500 hover:bg-primary-600 text-white px-3 py-1 rounded shadow-lg text-xs font-medium"
                             onClick={(e) => {
@@ -2901,6 +3070,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                   next.delete(photoBox.asset.id);
                                   return next;
                                 });
+                              }
+                              // Reset crop (object-position)
+                              if (hasCropCustomization) {
+                                handleResetCrop(photoBox.asset.id);
                               }
                               // Reset custom ordering by rebuilding the array without this asset
                               // This moves the asset back to its default position
@@ -2927,28 +3100,43 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           </div>
                         )}
 
-                        {/* Phase 3: unlock this auto image into a free element */}
-                        <button
-                          className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-stone-800/80 hover:bg-stone-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const pageId = String(page.pageNumber);
-                            const newEl = createImageElement(photoBox.asset.id, {
-                              x: photoBox.x,
-                              y: photoBox.y,
-                              width: photoBox.width,
-                              height: photoBox.height,
-                            });
-                            setOverlayElements((prev) => ({
-                              ...prev,
-                              [pageId]: [...(prev[pageId] ?? []), newEl],
-                            }));
-                          }}
-                          title="Aus dem Auto-Layout lösen (frei platzierbar)"
-                        >
-                          Lösen
-                        </button>
+                        {/* Crop + Phase 3: unlock this auto image into a free element */}
+                        {!isCropping && (
+                          <div className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              className="bg-stone-800/80 hover:bg-stone-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setCroppingAssetId(photoBox.asset.id);
+                              }}
+                              title="Bildausschnitt anpassen"
+                            >
+                              Crop
+                            </button>
+                            <button
+                              className="bg-stone-800/80 hover:bg-stone-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const pageId = String(page.pageNumber);
+                                const newEl = createImageElement(photoBox.asset.id, {
+                                  x: photoBox.x,
+                                  y: photoBox.y,
+                                  width: photoBox.width,
+                                  height: photoBox.height,
+                                });
+                                setOverlayElements((prev) => ({
+                                  ...prev,
+                                  [pageId]: [...(prev[pageId] ?? []), newEl],
+                                }));
+                              }}
+                              title="Aus dem Auto-Layout lösen (frei platzierbar)"
+                            >
+                              Lösen
+                            </button>
+                          </div>
+                        )}
 
                         {/* Aus dem Buch entfernen (bleibt in Immich) */}
                         <button
@@ -2961,6 +3149,19 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           title="Aus dem Fotobuch entfernen (bleibt in Immich)"
                         >
                           Entfernen
+                        </button>
+
+                        {/* Leerraum direkt nach diesem Foto einfügen */}
+                        <button
+                          className="absolute bottom-2 left-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-stone-800/80 hover:bg-stone-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleAddBlocker(photoBox.asset.id);
+                          }}
+                          title="Leerraum nach diesem Foto einfügen"
+                        >
+                          + Leerraum
                         </button>
 
                         {/* Left drag handle */}

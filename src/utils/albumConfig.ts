@@ -48,6 +48,12 @@ export interface ExtraPage {
   afterPage: number;
 }
 
+/** Bildausschnitt (object-position) in Prozent; 50/50 = Mitte (Default). */
+export interface CropPosition {
+  x: number;
+  y: number;
+}
+
 /** Globale Standard-Einstellungen (identisch zum bisherigen Inline-Typ). */
 export interface GlobalConfig {
   // Page settings
@@ -93,6 +99,8 @@ export interface AlbumConfig extends GlobalConfig {
   pageAlignments: Record<number, PageAlignment>;
   /** Asset-IDs, die aus dem Buch ausgeschlossen sind (bleiben in Immich). */
   excludedAssetIds: string[];
+  /** Bildausschnitt je assetId (object-position in Prozent). */
+  cropPositions: Record<string, CropPosition>;
 }
 
 /** Album-Konfiguration im neuen Format (V2). */
@@ -113,6 +121,8 @@ export interface AlbumConfigV2 extends GlobalConfig {
   titlePage: TitlePageConfig | null;
   /** Zusätzliche Leerseiten, einsortiert über afterPage. */
   extraPages: ExtraPage[];
+  /** Bildausschnitt je assetId (object-position in Prozent). */
+  cropPositions: Record<string, CropPosition>;
 }
 
 /**
@@ -296,6 +306,7 @@ export function saveAlbumConfig(
       customAspectRatios: config.customAspectRatios ?? {},
       customOrdering: config.customOrdering ?? null,
       pageAlignments: config.pageAlignments ?? {},
+      cropPositions: config.cropPositions ?? {},
       overlayElements: config.overlayElements ?? {},
       imageCaptions,
       excludedAssetIds: config.excludedAssetIds ?? [],

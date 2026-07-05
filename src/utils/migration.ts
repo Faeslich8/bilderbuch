@@ -21,6 +21,7 @@ import type {
   StoredImageCaption,
   TitlePageConfig,
   ExtraPage,
+  CropPosition,
 } from "./albumConfig";
 
 const SCHEMA_VERSION = 2 as const;
@@ -123,6 +124,26 @@ function sanitizeExtraPages(raw: unknown): ExtraPage[] {
     .map((p) => ({ id: p.id, afterPage: p.afterPage }));
 }
 
+function sanitizeCropPositions(raw: unknown): Record<string, CropPosition> {
+  const out: Record<string, CropPosition> = {};
+  if (!isPlainObject(raw)) return out;
+  for (const [assetId, pos] of Object.entries(raw)) {
+    if (
+      isPlainObject(pos) &&
+      typeof pos.x === "number" &&
+      typeof pos.y === "number" &&
+      Number.isFinite(pos.x) &&
+      Number.isFinite(pos.y)
+    ) {
+      out[assetId] = {
+        x: Math.min(100, Math.max(0, pos.x)),
+        y: Math.min(100, Math.max(0, pos.y)),
+      };
+    }
+  }
+  return out;
+}
+
 function pickGlobal(
   raw: Record<string, unknown>,
   fallback: GlobalConfig,
@@ -162,6 +183,7 @@ export function migrateRawAlbumConfig(
       customAspectRatios: {},
       customOrdering: null,
       pageAlignments: {},
+      cropPositions: {},
       overlayElements: {},
       imageCaptions: {},
       excludedAssetIds: [],
@@ -193,6 +215,7 @@ export function migrateRawAlbumConfig(
       customAspectRatios,
       customOrdering,
       pageAlignments,
+      cropPositions: sanitizeCropPositions(raw.cropPositions),
       overlayElements: sanitizeOverlayElements(raw.overlayElements),
       imageCaptions: sanitizeImageCaptions(raw.imageCaptions),
       excludedAssetIds,
@@ -208,6 +231,7 @@ export function migrateRawAlbumConfig(
     customAspectRatios,
     customOrdering,
     pageAlignments,
+    cropPositions: {},
     overlayElements: {},
     imageCaptions: captionsFromDescriptionPositions(raw.descriptionPositions),
     excludedAssetIds,
