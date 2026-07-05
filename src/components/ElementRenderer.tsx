@@ -29,7 +29,7 @@ import type {
   ShapeElement,
   EmojiElement,
 } from "../types/pageElement";
-import type { Position } from "../utils/albumConfig";
+import type { Position, CropPosition } from "../utils/albumConfig";
 import { toPoints } from "../utils/units";
 
 /* ------------------------------------------------------------------ */
@@ -197,6 +197,12 @@ function dateBadgePlacement(
 /* Kontext, den beide Adapter zum Rendern eines Bild-Elements brauchen. */
 /* ------------------------------------------------------------------ */
 
+function cropStyle(cropPosition?: CropPosition) {
+  return cropPosition
+    ? { objectPosition: `${cropPosition.x}% ${cropPosition.y}%` }
+    : {};
+}
+
 export interface PdfImageContext {
   imageUrl: string;
   descPosition: Position;
@@ -205,6 +211,8 @@ export interface PdfImageContext {
   /** Bereits upstream über showDates + fileCreatedAt gefiltert; undefined ⇒ nicht zeigen. */
   dateText?: string;
   styles: PdfStyles;
+  /** Bildausschnitt (object-position); identisch zur Web-Vorschau angewendet. */
+  cropPosition?: CropPosition;
 }
 
 export interface WebImageContext {
@@ -216,6 +224,8 @@ export interface WebImageContext {
   styles: WebStyles;
   /** Web-only: Klick auf Datum/Beschreibung (Position zyklieren). PDF ignoriert das. */
   onLabelClick?: (event: React.MouseEvent) => void;
+  /** Bildausschnitt (object-position); identisch zum PDF-Export angewendet. */
+  cropPosition?: CropPosition;
 }
 
 /* ------------------------------------------------------------------ */
@@ -229,7 +239,8 @@ export function PdfElement({
   element: ImageElement;
   ctx: PdfImageContext;
 }) {
-  const { imageUrl, descPosition, description, dateText, styles } = ctx;
+  const { imageUrl, descPosition, description, dateText, styles, cropPosition } =
+    ctx;
   const hasDescription = !!description;
   const isLeftRight = isLeftRightPos(descPosition, hasDescription);
   const { imageWidth, height } = imageSplit(element, isLeftRight);
@@ -262,8 +273,9 @@ export function PdfElement({
                 width: imageWidth,
                 height,
                 objectFit: "cover",
+                ...cropStyle(cropPosition),
               }
-            : photoStaticStyles.photo
+            : { ...photoStaticStyles.photo, ...cropStyle(cropPosition) }
         }
       />
 
@@ -349,8 +361,16 @@ export function WebElement({
   element: ImageElement;
   ctx: WebImageContext;
 }) {
-  const { imageUrl, alt, descPosition, description, dateText, styles, onLabelClick } =
-    ctx;
+  const {
+    imageUrl,
+    alt,
+    descPosition,
+    description,
+    dateText,
+    styles,
+    onLabelClick,
+    cropPosition,
+  } = ctx;
   const hasDescription = !!description;
   const isLeftRight = isLeftRightPos(descPosition, hasDescription);
   const { imageWidth } = imageSplit(element, isLeftRight);
@@ -374,7 +394,10 @@ export function WebElement({
         src={imageUrl}
         alt={alt}
         className="object-cover w-full h-full"
-        style={isLeftRight ? { width: `${imageWidth}px`, flexShrink: 0 } : undefined}
+        style={{
+          ...(isLeftRight ? { width: `${imageWidth}px`, flexShrink: 0 } : {}),
+          ...cropStyle(cropPosition),
+        }}
         loading="lazy"
         draggable={false}
       />
