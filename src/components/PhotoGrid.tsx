@@ -75,6 +75,7 @@ import {
   mdiFormatAlignCenter,
   mdiFormatAlignRight,
   mdiTrashCanOutline,
+  mdiFilePlusOutline,
 } from "@mdi/js";
 
 // Register Roboto font for PDF using local bundled files
@@ -1131,10 +1132,12 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     );
 
   // Leerseiten verwalten.
-  const addBlankPage = () =>
+  // afterPage: Anker-Seitenzahl, nach der eingefügt wird; Standard = Ende des Buchs
+  // (bisheriges Verhalten des globalen Toolbar-Buttons "+ Leere Seite").
+  const addBlankPage = (afterPage: number = pages.length) =>
     setExtraPages((prev) => [
       ...prev,
-      { id: `extra-${crypto.randomUUID()}`, afterPage: pages.length },
+      { id: `extra-${crypto.randomUUID()}`, afterPage },
     ]);
   const deleteExtraPage = (id: string) => {
     setExtraPages((prev) => prev.filter((ep) => ep.id !== id));
@@ -1395,9 +1398,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             )}
             {mode === "preview" && (
               <button
-                onClick={addBlankPage}
+                onClick={() => addBlankPage()}
                 className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
-                title="Leere Seite hinzufügen (frei mit Text/Fotos/Formen füllen)"
+                title="Leere Seite am Ende des Buchs hinzufügen (frei mit Text/Fotos/Formen füllen)"
               >
                 + Leere Seite
               </button>
@@ -2595,6 +2598,13 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         </div>
                       </div>
                     )}
+                    <button
+                      onClick={() => addBlankPage(page.pageNumber)}
+                      className="px-2 py-1 text-xs border rounded transition-colors flex items-center bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                      title="Leere Doppelseite nach diesem Spread einfügen"
+                    >
+                      <Icon path={mdiFilePlusOutline} size={0.6} />
+                    </button>
                   </div>
                 ) : (
                   /* Single page mode - center everything */
@@ -2650,6 +2660,13 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         title="Rechtsbündig"
                       >
                         <Icon path={mdiFormatAlignRight} size={0.6} />
+                      </button>
+                      <button
+                        onClick={() => addBlankPage(page.pageNumber)}
+                        className="px-2 py-1 text-xs border rounded transition-colors flex items-center bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                        title="Leerseite nach dieser Seite einfügen"
+                      >
+                        <Icon path={mdiFilePlusOutline} size={0.6} />
                       </button>
                     </div>
                   </div>
