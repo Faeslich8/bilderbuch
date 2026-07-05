@@ -11,6 +11,8 @@
  *  - Für den PDF-Export werden Werte zentral mit (72/300) in Punkte umgerechnet.
  */
 
+import { randomId } from "../utils/id";
+
 export type ElementType = "image" | "text" | "shape" | "emoji";
 
 /** Eigenschaften, die jedes Element besitzt. */
@@ -137,10 +139,7 @@ export const isEmojiElement = (el: PageElement): el is EmojiElement =>
 /* ------------------------------------------------------------------ */
 
 let zCounter = 1;
-const nextId = (): string =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `el-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const nextId = (): string => randomId("el-");
 
 export function createTextElement(
   partial: Partial<TextElement> = {},

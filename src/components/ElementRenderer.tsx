@@ -39,6 +39,8 @@ import { toPoints } from "../utils/units";
 export const photoStaticStyles = StyleSheet.create({
   photoContainer: {
     position: "absolute",
+    // Beschneidet den Überstand bei Zoom-Crop (transform: scale) im PDF.
+    overflow: "hidden",
   },
   photo: {
     width: "100%",
@@ -198,9 +200,17 @@ function dateBadgePlacement(
 /* ------------------------------------------------------------------ */
 
 function cropStyle(cropPosition?: CropPosition) {
-  return cropPosition
-    ? { objectPosition: `${cropPosition.x}% ${cropPosition.y}%` }
-    : {};
+  if (!cropPosition) return {};
+  const style: Record<string, string> = {
+    objectPosition: `${cropPosition.x}% ${cropPosition.y}%`,
+  };
+  // Zoom: das Bild um den Ausschnittspunkt herum vergrößern; der Container
+  // (overflow: hidden) beschneidet den Überstand. Identisch in Web + PDF.
+  if (cropPosition.scale && cropPosition.scale > 1) {
+    style.transform = `scale(${cropPosition.scale})`;
+    style.transformOrigin = `${cropPosition.x}% ${cropPosition.y}%`;
+  }
+  return style;
 }
 
 export interface PdfImageContext {
