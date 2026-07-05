@@ -622,13 +622,21 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
   // Insert / remove a "Leerraum" blocker (a layout placeholder; its position lives in
   // customOrdering, its size in customAspectRatios — both already persisted).
-  const handleAddBlocker = () => {
+  // afterAssetId: direkt hinter dieser Asset-/Blocker-ID einsortieren; ohne Angabe
+  // (oder falls die ID nicht mehr existiert) wie bisher ans Ende anhängen.
+  const handleAddBlocker = (afterAssetId?: string) => {
     const id = `${BLOCKER_PREFIX}${crypto.randomUUID()}`;
     setCustomAspectRatios((prev) => new Map(prev).set(id, 1));
-    setCustomOrdering((prev) => [
-      ...(prev ?? defaultFilteredAssets.map((a) => a.id)),
-      id,
-    ]);
+    setCustomOrdering((prev) => {
+      const base = prev ?? defaultFilteredAssets.map((a) => a.id);
+      const anchorIndex = afterAssetId ? base.indexOf(afterAssetId) : -1;
+      if (anchorIndex === -1) return [...base, id];
+      return [
+        ...base.slice(0, anchorIndex + 1),
+        id,
+        ...base.slice(anchorIndex + 1),
+      ];
+    });
   };
   const handleDeleteBlocker = (id: string) => {
     setCustomOrdering((prev) => (prev ? prev.filter((x) => x !== id) : prev));
@@ -1380,9 +1388,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             )}
             {mode === "preview" && (
               <button
-                onClick={handleAddBlocker}
+                onClick={() => handleAddBlocker()}
                 className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
-                title="Leeren Gestaltungsraum einfügen (drückt Bilder weg)"
+                title="Leeren Gestaltungsraum am Ende des Buchs einfügen (drückt Bilder weg)"
               >
                 + Leerraum
               </button>
@@ -2978,6 +2986,19 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           title="Aus dem Fotobuch entfernen (bleibt in Immich)"
                         >
                           Entfernen
+                        </button>
+
+                        {/* Leerraum direkt nach diesem Foto einfügen */}
+                        <button
+                          className="absolute bottom-2 left-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-stone-800/80 hover:bg-stone-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleAddBlocker(photoBox.asset.id);
+                          }}
+                          title="Leerraum nach diesem Foto einfügen"
+                        >
+                          + Leerraum
                         </button>
 
                         {/* Left drag handle */}
