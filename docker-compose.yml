@@ -4,4 +4,8 @@ services:
     image: immich-book
     ports:
       - "8080:80"
+    environment:
+      # URL des Immich-Servers, wie ihn NGINX (im Container) erreicht -
+      # z. B. Container-Name + interner Port, wenn beide im selben Docker-Netzwerk laufen.
+      IMMICH_URL: "http://immich-server:2283"
     restart: unless-stopped

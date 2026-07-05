@@ -161,23 +161,33 @@ Reload nginx, for example using `sudo nginx -s reload`
 #### Option 3: Docker
 
 A `Dockerfile` and `docker-compose.yml` are included. The image builds the static
-site and serves it with nginx. The browser connects **directly** to your Immich
-server (same as the hosted version), so you must **allow CORS** for this app's origin
-on your Immich server — see [Enable CORS](#enable-cors-on-your-immich-server).
+site and nginx serves it **and** proxies `/api/` same-origin to your Immich server
+(configured via the `IMMICH_URL` environment variable, e.g. `http://immich-server:2283`
+when both containers share a Docker network). Because the browser only ever talks to
+this one origin, **no CORS configuration on Immich is needed** — set `IMMICH_URL` in
+`docker-compose.yml` to point at your Immich server and you're done.
 
 ```bash
 docker compose up --build -d
 ```
 
 The app is then available on <http://localhost:8080> (change the host port in
-`docker-compose.yml` if you like). Enter your Immich server URL and API key in the UI.
+`docker-compose.yml` if you like). Enter this app's own URL (e.g.
+`http://localhost:8080`) as the Server-URL in the UI, plus your API key.
 
 **Pre-built image (Portainer web editor):** pushes to `main` build and publish the
 image to `ghcr.io/<owner>/immich-book:latest` via `.github/workflows/docker-image.yml`.
 You can then deploy without any build context — paste `portainer-stack.yml` into
 Portainer's stack editor (or any compose that uses
-`image: ghcr.io/<owner>/immich-book:latest`). Make the package public, or add ghcr.io
-registry credentials in Portainer, so it can be pulled.
+`image: ghcr.io/<owner>/immich-book:latest`), adjusting `IMMICH_URL` and the network
+name to match your setup. Make the package public, or add ghcr.io registry
+credentials in Portainer, so it can be pulled.
+
+> If you'd rather connect directly from the browser to Immich instead of using the
+> same-origin proxy (e.g. Immich runs on a different host), remove the `IMMICH_URL`
+> environment variable and the `location /api/` block from `nginx.conf.template` —
+> then you must **allow CORS** for this app's origin on your Immich server, see
+> [Enable CORS](#enable-cors-on-your-immich-server).
 
 ### Using Immich Book
 
