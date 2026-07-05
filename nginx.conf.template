@@ -1,13 +1,28 @@
-# Liefert nur die statische SPA aus. KEIN API-Proxy: der Browser verbindet sich
-# direkt mit dem Immich-Server (Server-URL wird in der App eingegeben). Dafür muss
-# Immich CORS für die Origin dieser App erlauben — siehe README.
+# Liefert die statische SPA aus UND proxyt /api/ same-origin zum Immich-Server
+# (IMMICH_URL, z. B. http://immich_server:2283 bei Docker-Compose/Portainer im
+# selben Netzwerk). Kein CORS auf Immich nötig, da der Browser nur mit dieser
+# einen Origin spricht. Nur Umgebungsvariablen (${IMMICH_URL}) werden per
+# envsubst ersetzt; nginx-Variablen wie $uri/$host bleiben unangetastet.
 server {
     listen 80;
     server_name _;
     root /usr/share/nginx/html;
     index index.html;
 
+    # SPA: clientseitige Routen auf index.html zurückfallen lassen.
     location / {
         try_files $uri $uri/ /index.html;
+    }
+
+    # Immich-API gleich-origin durchreichen -> kein CORS im Browser nötig.
+    # /api/... wird unverändert an ${IMMICH_URL}/api/... weitergereicht.
+    location /api/ {
+        proxy_pass ${IMMICH_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        client_max_body_size 50m;
     }
 }

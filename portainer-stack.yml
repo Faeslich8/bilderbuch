@@ -2,9 +2,11 @@
 # GitHub Container Registry (gebaut von .github/workflows/docker-image.yml).
 # Kein Build-Kontext nötig -> einfach den Inhalt in den Portainer-Editor kopieren.
 #
-# Der Container liefert NUR die App aus. Die Immich-Verbindung stellst du in der
-# Oberfläche her (Server-URL + API-Key). Voraussetzung: Immich erlaubt CORS für
-# die Origin dieser App (z. B. http://homeservierer:8080) — siehe README.
+# Der Container liefert die App aus und proxyt /api/ same-origin zu Immich
+# (IMMICH_URL unten anpassen). Der Browser spricht dadurch nur mit dieser einen
+# Origin, kein CORS auf Immich nötig. Die Verbindung stellst du in der
+# Oberfläche her (als Server-URL diese App-Origin eingeben, z. B.
+# http://homeservierer:8080), API-Key dazu.
 #
 # Image entweder auf "public" stellen ODER in Portainer eine ghcr.io-Registry-
 # Anmeldung hinterlegen (Username = GitHub-Name, Passwort = PAT mit read:packages).
@@ -13,4 +15,17 @@ services:
     image: ghcr.io/faeslich8/immich-book:latest
     ports:
       - "8080:80"
+    environment:
+      # URL des Immich-Servers, wie ihn NGINX (im Container) erreicht -
+      # z. B. Container-Name + interner Port, wenn beide im selben Docker-Netzwerk laufen.
+      IMMICH_URL: "http://immich-server:2283"
+    networks:
+      - immich
     restart: unless-stopped
+
+networks:
+  immich:
+    external: true
+    # Name des Docker-Netzwerks, in dem dein Immich-Server läuft
+    # (siehe `docker network ls`, z. B. "immich_default" bei Standard-Compose-Setups).
+    name: immich_default
