@@ -135,9 +135,14 @@ function sanitizeCropPositions(raw: unknown): Record<string, CropPosition> {
       Number.isFinite(pos.x) &&
       Number.isFinite(pos.y)
     ) {
+      const scale =
+        typeof pos.scale === "number" && Number.isFinite(pos.scale)
+          ? Math.min(4, Math.max(1, pos.scale))
+          : undefined;
       out[assetId] = {
         x: Math.min(100, Math.max(0, pos.x)),
         y: Math.min(100, Math.max(0, pos.y)),
+        ...(scale && scale > 1 ? { scale } : {}),
       };
     }
   }

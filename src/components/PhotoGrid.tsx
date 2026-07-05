@@ -36,6 +36,7 @@ import {
   type CropPosition,
 } from "../utils/albumConfig";
 import { toPoints, screenToLayoutPx } from "../utils/units";
+import { randomId } from "../utils/id";
 import {
   PdfElement,
   PdfEmojiElement,
@@ -545,6 +546,25 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     });
   };
 
+  // Zoom (Ausschnittsvergrößerung) für ein Foto setzen. scale <= 1 ohne
+  // Verschiebung -> Eintrag entfernen (kein Crop).
+  const handleCropZoom = (assetId: string, scale: number) => {
+    setCropPositions((prev) => {
+      const next = new Map(prev);
+      const cur = prev.get(assetId) ?? { x: 50, y: 50 };
+      if (scale <= 1 && cur.x === 50 && cur.y === 50) {
+        next.delete(assetId);
+      } else {
+        next.set(assetId, {
+          x: cur.x,
+          y: cur.y,
+          ...(scale > 1 ? { scale } : {}),
+        });
+      }
+      return next;
+    });
+  };
+
   // Reset all aspect ratio customizations
   const handleResetAllCustomizations = () => {
     setCustomAspectRatios(new Map());
@@ -673,7 +693,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   // afterAssetId: direkt hinter dieser Asset-/Blocker-ID einsortieren; ohne Angabe
   // (oder falls die ID nicht mehr existiert) wie bisher ans Ende anhängen.
   const handleAddBlocker = (afterAssetId?: string) => {
-    const id = `${BLOCKER_PREFIX}${crypto.randomUUID()}`;
+    const id = randomId(BLOCKER_PREFIX);
     setCustomAspectRatios((prev) => new Map(prev).set(id, 1));
     setCustomOrdering((prev) => {
       const base = prev ?? defaultFilteredAssets.map((a) => a.id);
@@ -743,7 +763,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       const aspect = data.width / data.height || 1;
       const targetW = Math.round(validPageWidth * 0.5);
       const targetH = Math.max(1, Math.round(targetW / aspect));
-      const el = createImageElement(crypto.randomUUID(), {
+      const el = createImageElement(randomId(), {
         src: data.src,
         x: Math.round((validPageWidth - targetW) / 2),
         y: Math.round((validPageHeight - targetH) / 2),
@@ -1103,7 +1123,12 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
       setCropPositions((prev) => {
         const next = new Map(prev);
-        next.set(cropDragState.assetId, { x: newX, y: newY });
+        const scale = prev.get(cropDragState.assetId)?.scale;
+        next.set(cropDragState.assetId, {
+          x: newX,
+          y: newY,
+          ...(scale && scale > 1 ? { scale } : {}),
+        });
         return next;
       });
     };
@@ -1233,7 +1258,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const addBlankPage = (afterPage: number = pages.length) =>
     setExtraPages((prev) => [
       ...prev,
-      { id: `extra-${crypto.randomUUID()}`, afterPage },
+      { id: randomId("extra-"), afterPage },
     ]);
   const deleteExtraPage = (id: string) => {
     setExtraPages((prev) => prev.filter((ep) => ep.id !== id));
@@ -1441,8 +1466,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           </span>
         </div>
       )}
-      {/* Controls */}
-      <div className="mb-6 flex flex-col lg:flex-row flex-1 items-start lg:justify-between gap-4 lg:gap-8">
+      {/* Controls — bleibt beim Scrollen oben stehen (sticky). */}
+      <div className="sticky top-0 z-30 -mx-4 mb-6 flex flex-col items-start gap-4 border-b border-stone-200 bg-stone-100/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:flex-row lg:justify-between lg:gap-8 lg:px-8">
         <div className="w-full lg:w-auto">
           <button
             onClick={onBack}
@@ -3018,6 +3043,35 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                               >
                                 Fertig
                               </button>
+                            </div>
+                            {/* Zoom-Regler + Hinweis (zum Verschieben ins Bild ziehen) */}
+                            <div
+                              className="absolute inset-x-2 bottom-2 z-20 flex items-center gap-2 rounded bg-stone-900/75 px-2 py-1 text-white"
+                              onMouseDown={(e) => e.stopPropagation()}
+                            >
+                              <span className="text-[10px] whitespace-nowrap">
+                                Zoom
+                              </span>
+                              <input
+                                type="range"
+                                min={1}
+                                max={3}
+                                step={0.02}
+                                value={
+                                  cropPositions.get(photoBox.asset.id)?.scale ??
+                                  1
+                                }
+                                onChange={(e) =>
+                                  handleCropZoom(
+                                    photoBox.asset.id,
+                                    parseFloat(e.target.value),
+                                  )
+                                }
+                                className="h-1 flex-1 cursor-pointer accent-primary-500"
+                              />
+                              <span className="text-[10px] whitespace-nowrap opacity-80">
+                                ziehen zum Verschieben
+                              </span>
                             </div>
                           </>
                         )}

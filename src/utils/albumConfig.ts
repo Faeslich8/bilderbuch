@@ -48,10 +48,16 @@ export interface ExtraPage {
   afterPage: number;
 }
 
-/** Bildausschnitt (object-position) in Prozent; 50/50 = Mitte (Default). */
+/**
+ * Bildausschnitt eines Fotos.
+ * - x/y: object-position in Prozent (50/50 = Mitte, Default).
+ * - scale: Zoomfaktor (>= 1). >1 zoomt in das Bild hinein, sodass sich per x/y
+ *   der sichtbare Ausschnitt verschieben lässt. Fehlt/1 = kein Zoom.
+ */
 export interface CropPosition {
   x: number;
   y: number;
+  scale?: number;
 }
 
 /** Globale Standard-Einstellungen (identisch zum bisherigen Inline-Typ). */
