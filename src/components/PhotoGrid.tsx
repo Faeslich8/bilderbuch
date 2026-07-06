@@ -307,6 +307,20 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   >(() => new Map(Object.entries(initialConfig.cropPositions)));
   // Welches Foto sich gerade im Crop-Modus befindet (Bildausschnitt per Drag anpassen).
   const [croppingAssetId, setCroppingAssetId] = useState<string | null>(null);
+  // Freitext in Leerräumen (Blocker) je Blocker-Id.
+  const [blockerTexts, setBlockerTexts] = useState<Map<string, string>>(
+    () => new Map(Object.entries(initialConfig.blockerTexts)),
+  );
+  // Welcher Leerraum gerade bearbeitet wird (Doppelklick zum Editieren).
+  const [editingBlockerId, setEditingBlockerId] = useState<string | null>(null);
+  // Eigene Bildunterschrift je assetId.
+  const [imageCaptionTexts, setImageCaptionTexts] = useState<
+    Map<string, string>
+  >(() => new Map(Object.entries(initialConfig.imageCaptionTexts)));
+  // Welche Bildunterschrift gerade bearbeitet wird.
+  const [editingCaptionAssetId, setEditingCaptionAssetId] = useState<
+    string | null
+  >(null);
 
   // Drag state for reordering
   const [reorderDragState, setReorderDragState] = useState<{
@@ -436,6 +450,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       pageAlignments: Object.fromEntries(pageAlignments),
       excludedAssetIds: Array.from(excludedAssetIds),
       cropPositions: Object.fromEntries(cropPositions),
+      blockerTexts: Object.fromEntries(blockerTexts),
+      imageCaptionTexts: Object.fromEntries(imageCaptionTexts),
     };
     saveAlbumConfig(album.id, {
       ...config,
@@ -465,6 +481,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     overlayElements,
     excludedAssetIds,
     cropPositions,
+    blockerTexts,
+    imageCaptionTexts,
     titlePage,
     extraPages,
     isPageWidthValid,
@@ -561,6 +579,26 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           ...(scale > 1 ? { scale } : {}),
         });
       }
+      return next;
+    });
+  };
+
+  // Freitext eines Leerraums (Blocker) setzen; leer -> Eintrag entfernen.
+  const setBlockerText = (id: string, text: string) => {
+    setBlockerTexts((prev) => {
+      const next = new Map(prev);
+      if (text.trim().length === 0) next.delete(id);
+      else next.set(id, text);
+      return next;
+    });
+  };
+
+  // Eigene Bildunterschrift setzen; leer -> Eintrag entfernen.
+  const setImageCaptionText = (assetId: string, text: string) => {
+    setImageCaptionTexts((prev) => {
+      const next = new Map(prev);
+      if (text.trim().length === 0) next.delete(assetId);
+      else next.set(assetId, text);
       return next;
     });
   };
@@ -713,6 +751,13 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       next.delete(id);
       return next;
     });
+    setBlockerTexts((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+    if (editingBlockerId === id) setEditingBlockerId(null);
   };
 
   // Phase 4: place an album image as a free element (centered on page 1, then movable).
@@ -2176,11 +2221,45 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     )}
 
                     {pageData.photos.map((photoBox) => {
-                      // Blockers reserve empty space in the PDF (nothing drawn).
-                      if (isBlocker(photoBox.asset.id)) return null;
+                      // Blocker: leerer Platz; mit optionalem Freitext (Leerraum).
+                      if (isBlocker(photoBox.asset.id)) {
+                        const bText = blockerTexts.get(photoBox.asset.id);
+                        if (!bText) return null;
+                        return (
+                          <View
+                            key={photoBox.asset.id}
+                            style={{
+                              position: "absolute",
+                              left: toPoints(photoBox.x),
+                              top: toPoints(photoBox.y),
+                              width: toPoints(photoBox.width),
+                              height: toPoints(photoBox.height),
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: 8,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontFamily: "Roboto",
+                                fontSize: fontSize,
+                                color: "#000000",
+                                textAlign: "center",
+                              }}
+                            >
+                              {bText}
+                            </Text>
+                          </View>
+                        );
+                      }
                       const imageUrl = `${immichConfig.baseUrl}/assets/${photoBox.asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`;
-                      const descPosition =
-                        descriptionPositions.get(photoBox.asset.id) || "bottom";
+                      const customCaption = imageCaptionTexts.get(
+                        photoBox.asset.id,
+                      );
+                      const descPosition = customCaption
+                        ? "bottom"
+                        : descriptionPositions.get(photoBox.asset.id) ||
+                          "bottom";
                       const hasDescription =
                         showDescriptions &&
                         !!photoBox.asset.exifInfo?.description;
@@ -2191,9 +2270,11 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           ctx={{
                             imageUrl,
                             descPosition,
-                            description: hasDescription
-                              ? photoBox.asset.exifInfo?.description
-                              : undefined,
+                            description:
+                              customCaption ??
+                              (hasDescription
+                                ? photoBox.asset.exifInfo?.description
+                                : undefined),
                             dateText:
                               showDates && photoBox.asset.fileCreatedAt
                                 ? new Date(
@@ -2864,12 +2945,19 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     const isReordered =
                       customOrdering !== null && globalIndex !== defaultIndex;
 
-                    const descPosition =
-                      descriptionPositions.get(photoBox.asset.id) || "bottom";
+                    const customCaption = imageCaptionTexts.get(
+                      photoBox.asset.id,
+                    );
+                    const isEditingCaption =
+                      editingCaptionAssetId === photoBox.asset.id;
+                    const descPosition = customCaption
+                      ? "bottom"
+                      : descriptionPositions.get(photoBox.asset.id) || "bottom";
                     const hasDescription =
                       showDescriptions &&
                       !!photoBox.asset.exifInfo?.description;
                     const isLeftRight =
+                      !customCaption &&
                       hasDescription &&
                       (descPosition === "left" || descPosition === "right");
 
@@ -2879,6 +2967,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
                     // Blocker: empty design space (reorder + edge-resize like a photo).
                     if (isBlocker(photoBox.asset.id)) {
+                      const isEditingBlocker =
+                        editingBlockerId === photoBox.asset.id;
+                      const blockerText =
+                        blockerTexts.get(photoBox.asset.id) ?? "";
                       return (
                         <div
                           key={photoBox.asset.id}
@@ -2889,7 +2981,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             width: `${containerWidth}px`,
                             height: `${toPoints(photoBox.height)}px`,
                           }}
-                          draggable
+                          draggable={!isEditingBlocker}
                           onDragStart={(e) =>
                             handleReorderDragStart(
                               photoBox.asset.id,
@@ -2900,12 +2992,59 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           onDragOver={(e) => handleReorderDragOver(globalIndex, e)}
                           onDragEnd={handleReorderDragEnd}
                           onDrop={(e) => handleReorderDrop(globalIndex, e)}
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            setEditingBlockerId(photoBox.asset.id);
+                          }}
                         >
                           {isDropTarget && reorderDragState && (
                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-lg z-10" />
                           )}
-                          <div className="w-full h-full border-2 border-dashed border-stone-300 bg-stone-50 flex items-center justify-center text-stone-400 text-xs select-none">
-                            Leerraum
+                          <div
+                            className={`w-full h-full border-2 border-dashed bg-stone-50 flex items-center justify-center p-3 text-center ${
+                              isEditingBlocker
+                                ? "border-primary-400"
+                                : "border-stone-300"
+                            }`}
+                          >
+                            {isEditingBlocker ? (
+                              <textarea
+                                autoFocus
+                                value={blockerText}
+                                onChange={(ev) =>
+                                  setBlockerText(
+                                    photoBox.asset.id,
+                                    ev.target.value,
+                                  )
+                                }
+                                onBlur={() => setEditingBlockerId(null)}
+                                onKeyDown={(ev) => {
+                                  if (ev.key === "Escape")
+                                    (ev.target as HTMLTextAreaElement).blur();
+                                }}
+                                onClick={(ev) => ev.stopPropagation()}
+                                placeholder="Text eingeben…"
+                                className="w-full h-full resize-none border-0 bg-transparent text-center text-stone-700 outline-none"
+                                style={{
+                                  fontFamily: "Roboto",
+                                  fontSize: `${toPoints(validPageHeight) * 0.02}px`,
+                                }}
+                              />
+                            ) : blockerText ? (
+                              <span
+                                className="whitespace-pre-wrap break-words text-stone-700"
+                                style={{
+                                  fontFamily: "Roboto",
+                                  fontSize: `${toPoints(validPageHeight) * 0.02}px`,
+                                }}
+                              >
+                                {blockerText}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-stone-400 select-none">
+                                Leerraum · Doppelklick für Text
+                              </span>
+                            )}
                           </div>
                           <button
                             className="absolute top-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white text-[10px] px-2 py-0.5 rounded shadow"
@@ -2984,9 +3123,11 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             imageUrl,
                             alt: photoBox.asset.originalFileName,
                             descPosition,
-                            description: hasDescription
-                              ? photoBox.asset.exifInfo?.description
-                              : undefined,
+                            description:
+                              customCaption ??
+                              (hasDescription
+                                ? photoBox.asset.exifInfo?.description
+                                : undefined),
                             dateText:
                               showDates && photoBox.asset.fileCreatedAt
                                 ? new Date(
@@ -2998,11 +3139,50 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                   })
                                 : undefined,
                             styles: webStyles,
-                            onLabelClick: (e) =>
-                              handleDescriptionClick(photoBox.asset.id, e),
+                            onLabelClick: customCaption
+                              ? (e) => {
+                                  e.stopPropagation();
+                                  setEditingCaptionAssetId(photoBox.asset.id);
+                                }
+                              : (e) =>
+                                  handleDescriptionClick(photoBox.asset.id, e),
                             cropPosition: cropPositions.get(photoBox.asset.id),
                           }}
                         />
+
+                        {/* Inline-Editor für die eigene Bildunterschrift */}
+                        {isEditingCaption && (
+                          <textarea
+                            autoFocus
+                            value={customCaption ?? ""}
+                            onChange={(ev) =>
+                              setImageCaptionText(
+                                photoBox.asset.id,
+                                ev.target.value,
+                              )
+                            }
+                            onBlur={(ev) => {
+                              setEditingCaptionAssetId(null);
+                              // leeren Eintrag (nur Button geklickt) wieder entfernen
+                              setImageCaptionText(
+                                photoBox.asset.id,
+                                ev.target.value,
+                              );
+                            }}
+                            onKeyDown={(ev) => {
+                              if (ev.key === "Escape")
+                                (ev.target as HTMLTextAreaElement).blur();
+                            }}
+                            onClick={(ev) => ev.stopPropagation()}
+                            placeholder="Bildunterschrift…"
+                            className="absolute inset-x-0 bottom-0 z-30 resize-none border-0 bg-white/85 px-1 text-center text-stone-800 outline-none"
+                            style={{
+                              fontSize: `${fontSize}px`,
+                              height: `${Math.max(fontSize * 2.5, 24)}px`,
+                              fontFamily: "Roboto",
+                            }}
+                          />
+                        )}
 
                         {/* Crop-Modus: transparentes Drag-Overlay + persistente Steuerung */}
                         {isCropping && (
@@ -3154,7 +3334,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           </div>
                         )}
 
-                        {/* Crop + Phase 3: unlock this auto image into a free element */}
+                        {/* Crop + Beschriftung + Phase 3: unlock this auto image */}
                         {!isCropping && (
                           <div className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
@@ -3167,6 +3347,24 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                               title="Bildausschnitt anpassen"
                             >
                               Crop
+                            </button>
+                            <button
+                              className="bg-stone-800/80 hover:bg-stone-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                // Leeren Eintrag anlegen, damit die Caption-Leiste
+                                // erscheint, und direkt in den Bearbeitungsmodus.
+                                if (!imageCaptionTexts.has(photoBox.asset.id)) {
+                                  setImageCaptionTexts((prev) =>
+                                    new Map(prev).set(photoBox.asset.id, ""),
+                                  );
+                                }
+                                setEditingCaptionAssetId(photoBox.asset.id);
+                              }}
+                              title="Bildunterschrift hinzufügen/bearbeiten"
+                            >
+                              Text
                             </button>
                             <button
                               className="bg-stone-800/80 hover:bg-stone-900 text-white text-[10px] px-2 py-0.5 rounded shadow"

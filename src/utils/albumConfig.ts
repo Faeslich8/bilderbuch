@@ -107,6 +107,10 @@ export interface AlbumConfig extends GlobalConfig {
   excludedAssetIds: string[];
   /** Bildausschnitt je assetId (object-position in Prozent). */
   cropPositions: Record<string, CropPosition>;
+  /** Freitext in einem Leerraum (Blocker) je Blocker-Id. */
+  blockerTexts: Record<string, string>;
+  /** Eigene Bildunterschrift je assetId (überschreibt die Immich-Beschreibung). */
+  imageCaptionTexts: Record<string, string>;
 }
 
 /** Album-Konfiguration im neuen Format (V2). */
@@ -129,6 +133,10 @@ export interface AlbumConfigV2 extends GlobalConfig {
   extraPages: ExtraPage[];
   /** Bildausschnitt je assetId (object-position in Prozent). */
   cropPositions: Record<string, CropPosition>;
+  /** Freitext in einem Leerraum (Blocker) je Blocker-Id. */
+  blockerTexts: Record<string, string>;
+  /** Eigene Bildunterschrift je assetId (überschreibt die Immich-Beschreibung). */
+  imageCaptionTexts: Record<string, string>;
 }
 
 /**
@@ -313,6 +321,8 @@ export function saveAlbumConfig(
       customOrdering: config.customOrdering ?? null,
       pageAlignments: config.pageAlignments ?? {},
       cropPositions: config.cropPositions ?? {},
+      blockerTexts: config.blockerTexts ?? {},
+      imageCaptionTexts: config.imageCaptionTexts ?? {},
       overlayElements: config.overlayElements ?? {},
       imageCaptions,
       excludedAssetIds: config.excludedAssetIds ?? [],
