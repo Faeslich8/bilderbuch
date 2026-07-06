@@ -6,7 +6,7 @@
 # (IMMICH_URL unten anpassen). Der Browser spricht dadurch nur mit dieser einen
 # Origin, kein CORS auf Immich nötig. Die Verbindung stellst du in der
 # Oberfläche her (als Server-URL diese App-Origin eingeben, z. B.
-# http://homeservierer:8080), API-Key dazu.
+# http://your-host:8080), API-Key dazu.
 #
 # Image entweder auf "public" stellen ODER in Portainer eine ghcr.io-Registry-
 # Anmeldung hinterlegen (Username = GitHub-Name, Passwort = PAT mit read:packages).
