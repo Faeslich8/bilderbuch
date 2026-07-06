@@ -149,6 +149,16 @@ function sanitizeCropPositions(raw: unknown): Record<string, CropPosition> {
   return out;
 }
 
+/** Record<string, string> defensiv säubern (Leerraum-Texte / Bildunterschriften). */
+function sanitizeStringRecord(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!isPlainObject(raw)) return out;
+  for (const [key, val] of Object.entries(raw)) {
+    if (typeof val === "string") out[key] = val;
+  }
+  return out;
+}
+
 function pickGlobal(
   raw: Record<string, unknown>,
   fallback: GlobalConfig,
@@ -189,6 +199,8 @@ export function migrateRawAlbumConfig(
       customOrdering: null,
       pageAlignments: {},
       cropPositions: {},
+      blockerTexts: {},
+      imageCaptionTexts: {},
       overlayElements: {},
       imageCaptions: {},
       excludedAssetIds: [],
@@ -221,6 +233,8 @@ export function migrateRawAlbumConfig(
       customOrdering,
       pageAlignments,
       cropPositions: sanitizeCropPositions(raw.cropPositions),
+      blockerTexts: sanitizeStringRecord(raw.blockerTexts),
+      imageCaptionTexts: sanitizeStringRecord(raw.imageCaptionTexts),
       overlayElements: sanitizeOverlayElements(raw.overlayElements),
       imageCaptions: sanitizeImageCaptions(raw.imageCaptions),
       excludedAssetIds,
@@ -237,6 +251,8 @@ export function migrateRawAlbumConfig(
     customOrdering,
     pageAlignments,
     cropPositions: {},
+    blockerTexts: {},
+    imageCaptionTexts: {},
     overlayElements: {},
     imageCaptions: captionsFromDescriptionPositions(raw.descriptionPositions),
     excludedAssetIds,
