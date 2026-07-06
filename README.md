@@ -1,5 +1,9 @@
 # Immich Book
 
+> This is a fork of [ch1bo/immich-book](https://github.com/ch1bo/immich-book)
+> by Sebastian Nagel, with additional editor features. Licensed under AGPL-3.0
+> (see [LICENSE](LICENSE)); all modifications remain under the same license.
+
 Create beautiful photo books from your [Immich](https://immich.app/) albums.
 
 A web application that generates print-ready photo books from your Immich albums using the official Immich SDK.

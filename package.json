@@ -5,15 +5,18 @@
   "type": "module",
   "license": "AGPL-3.0",
   "author": "Sebastian Nagel <sebastian.nagel@ncoding.at>",
+  "contributors": [
+    "Faeslich8 (fork maintainer)"
+  ],
   "description": "Create beautiful photo books from your Immich albums",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ch1bo/immich-book.git"
+    "url": "https://github.com/Faeslich8/immich-book.git"
   },
   "bugs": {
-    "url": "https://github.com/ch1bo/immich-book/issues"
+    "url": "https://github.com/Faeslich8/immich-book/issues"
   },
-  "homepage": "https://ch1bo.github.io/immich-book",
+  "homepage": "https://github.com/Faeslich8/immich-book",
   "scripts": {
     "start": "vite",
     "build": "vite build",

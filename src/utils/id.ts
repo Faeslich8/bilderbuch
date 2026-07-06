@@ -3,7 +3,7 @@
  *
  * `crypto.randomUUID()` ist nur in "secure contexts" (HTTPS oder localhost)
  * verfügbar. Diese App wird häufig über einfaches HTTP ausgeliefert
- * (z. B. http://homeservierer:8080) — dort ist die Methode NICHT vorhanden und
+ * (z. B. http://your-host:8080) — dort ist die Methode NICHT vorhanden und
  * ein direkter Aufruf wirft eine Ausnahme. Passiert das innerhalb eines
  * React-setState-Updaters, stürzt der gesamte Render ab (White-Screen).
  *
