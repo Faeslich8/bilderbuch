@@ -85,6 +85,25 @@ import {
   mdiFormatAlignRight,
   mdiTrashCanOutline,
   mdiFilePlusOutline,
+  mdiFileDownloadOutline,
+  mdiPencil,
+  mdiPlus,
+  mdiChevronDown,
+  mdiChevronLeft,
+  mdiCogOutline,
+  mdiViewGridOutline,
+  mdiFileOutline,
+  mdiBookOpenOutline,
+  mdiImagePlusOutline,
+  mdiFormatText,
+  mdiShapePlusOutline,
+  mdiEmoticonOutline,
+  mdiFileDocumentPlusOutline,
+  mdiVectorRectangle,
+  mdiBookOpenPageVariantOutline,
+  mdiCropRotate,
+  mdiImageEditOutline,
+  mdiClose,
 } from "@mdi/js";
 
 // Register fonts for PDF using local bundled files
@@ -467,6 +486,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   );
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Aufgeräumte Toolbar: Einfügen-Menü + Seiten-Übersicht.
+  const [insertMenuOpen, setInsertMenuOpen] = useState(false);
+  const [showOverview, setShowOverview] = useState(false);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [widthCmInput, setWidthCmInput] = useState(
@@ -1590,7 +1612,11 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
   // Web-Render einer Leerseite (Kopf mit Steuerung + Canvas mit Overlay).
   const renderBlankPageWeb = (extra: ExtraPage) => (
-    <div key={extra.id} className="relative mb-10">
+    <div
+      key={extra.id}
+      id={`bookblank-${extra.id}`}
+      className="relative mb-10 scroll-mt-40"
+    >
       <div className="mb-2 flex flex-wrap items-center justify-center gap-1.5">
         <span className="px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
           Leere Seite
@@ -1747,8 +1773,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
         </div>
       )}
       {/* Controls — bleibt beim Scrollen oben stehen (sticky). */}
-      <div className="sticky top-0 z-30 -mx-4 mb-6 flex flex-col items-start gap-4 border-b border-stone-200 bg-stone-100/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:flex-row lg:justify-between lg:gap-8 lg:px-8">
-        <div className="w-full lg:w-auto">
+      <div className="sticky top-0 z-30 -mx-4 mb-6 flex flex-col items-stretch gap-3 border-b border-stone-200 bg-stone-100/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="w-full">
           <button
             onClick={onBack}
             className="text-primary-600 hover:text-primary-800 mb-2"
@@ -1762,169 +1788,231 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               : `${filteredAssets.length} Fotos`}
           </p>
 
-          {/* Generate PDF / Back to Edit button */}
-          <div className="mt-4 flex flex-wrap gap-2">
+          {/* Aktionsleiste — gruppiert: Primär · Ansicht · Einfügen · Übersicht · Einstellungen */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {mode === "preview" ? (
               <button
                 onClick={() => setMode("pdf")}
-                className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium transition-colors shadow-sm"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 font-medium text-white shadow-sm transition-colors hover:bg-primary-700"
               >
+                <Icon path={mdiFileDownloadOutline} size={0.8} />
                 PDF erzeugen
               </button>
             ) : (
               <button
                 onClick={() => setMode("preview")}
-                className="px-6 py-2 bg-stone-600 text-white rounded-lg hover:bg-stone-700 font-medium transition-colors shadow-sm"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-stone-700 px-4 py-2 font-medium text-white shadow-sm transition-colors hover:bg-stone-800"
               >
+                <Icon path={mdiPencil} size={0.8} />
                 Zurück zum Editor
               </button>
             )}
-            {/* Ansicht: Einzel- vs. Doppelseiten (steuert combinePages) */}
-            <div
-              className="inline-flex items-center rounded-lg border border-stone-300 bg-white p-0.5 shadow-sm"
-              title="Ansicht: einzelne Seiten oder aufgeschlagene Doppelseiten (wirkt auch auf den PDF-Export)"
-            >
+
+            {/* Ansicht: Einzel/Doppel */}
+            <div className="inline-flex items-center rounded-lg border border-stone-300 bg-white p-0.5 shadow-sm">
               <button
                 onClick={() => setCombinePages(false)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
                   !combinePages
                     ? "bg-primary-600 text-white"
-                    : "text-stone-700 hover:bg-stone-50"
+                    : "text-stone-600 hover:bg-stone-50"
                 }`}
+                title="Einzelseiten"
               >
-                Einzelseiten
+                <Icon path={mdiFileOutline} size={0.7} />
+                <span className="hidden sm:inline">Einzel</span>
               </button>
               <button
                 onClick={() => setCombinePages(true)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
                   combinePages
                     ? "bg-primary-600 text-white"
-                    : "text-stone-700 hover:bg-stone-50"
+                    : "text-stone-600 hover:bg-stone-50"
                 }`}
+                title="Doppelseiten (aufgeschlagenes Buch)"
               >
-                Doppelseiten
+                <Icon path={mdiBookOpenOutline} size={0.7} />
+                <span className="hidden sm:inline">Doppel</span>
               </button>
             </div>
-            {mode === "preview" && (
-              <button
-                onClick={() => handleAddBlocker()}
-                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
-                title="Leeren Gestaltungsraum am Ende des Buchs einfügen (drückt Bilder weg)"
-              >
-                + Leerraum
-              </button>
-            )}
-            {mode === "preview" && !titlePage && (
-              <button
-                onClick={() => setTitlePage({ title: "", subtitle: "" })}
-                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
-                title="Titelblatt mit großem Foto, Titel und Untertitel erstellen"
-              >
-                + Titelblatt
-              </button>
-            )}
-            {mode === "preview" && (
-              <button
-                onClick={() => addBlankPage()}
-                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
-                title="Leere Seite am Ende des Buchs hinzufügen (frei mit Text/Fotos/Formen füllen)"
-              >
-                + Leere Seite
-              </button>
-            )}
-            {mode === "preview" && (
-              <button
-                onClick={() => setShowImagePicker((v) => !v)}
-                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
-                title="Ein Album-Bild frei auf der Seite platzieren"
-              >
-                + Bild einfügen
-              </button>
-            )}
-            {mode === "preview" && (
-              <button
-                onClick={() => handleInsertText()}
-                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
-                title="Freies Textfeld einfügen"
-              >
-                + Text einfügen
-              </button>
-            )}
-            {mode === "preview" && (
-              <button
-                onClick={() => handleInsertShape()}
-                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
-                title="Freie Form einfügen (Rechteck/Ellipse/Linie)"
-              >
-                + Form
-              </button>
-            )}
+
+            {/* Einfügen-Menü */}
             {mode === "preview" && (
               <div className="relative">
                 <button
-                  onClick={() => setEmojiPickerOpen((v) => !v)}
-                  className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm"
-                  title="Emoji einfügen"
+                  onClick={() => {
+                    setInsertMenuOpen((v) => !v);
+                    setEmojiPickerOpen(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3.5 py-2 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:bg-stone-50"
                 >
-                  + Emoji
+                  <Icon path={mdiPlus} size={0.8} />
+                  Einfügen
+                  <Icon path={mdiChevronDown} size={0.6} />
                 </button>
-                {emojiPickerOpen && (
-                  <div className="absolute z-50 mt-1 w-80 rounded-lg border border-stone-300 bg-white p-3 shadow-xl">
-                    <p className="mb-2 text-xs font-medium text-stone-500">
-                      Emoji wählen
-                    </p>
-                    <div className="grid grid-cols-7 gap-1.5">
-                      {EMOJI_PALETTE.map((em) => (
-                        <button
-                          key={em}
-                          onClick={() => handleInsertEmoji(em)}
-                          className="flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100 text-2xl leading-none transition-colors"
-                        >
-                          {em}
-                        </button>
-                      ))}
+                {insertMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => {
+                        setInsertMenuOpen(false);
+                        setEmojiPickerOpen(false);
+                      }}
+                    />
+                    <div className="absolute left-0 z-50 mt-1 w-56 rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl">
+                      {!emojiPickerOpen ? (
+                        <>
+                          <button
+                            onClick={() => {
+                              setShowImagePicker((v) => !v);
+                              setInsertMenuOpen(false);
+                            }}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-stone-700 hover:bg-stone-100"
+                          >
+                            <Icon path={mdiImagePlusOutline} size={0.8} /> Bild
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleInsertText();
+                              setInsertMenuOpen(false);
+                            }}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-stone-700 hover:bg-stone-100"
+                          >
+                            <Icon path={mdiFormatText} size={0.8} /> Textfeld
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleInsertShape();
+                              setInsertMenuOpen(false);
+                            }}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-stone-700 hover:bg-stone-100"
+                          >
+                            <Icon path={mdiShapePlusOutline} size={0.8} /> Form
+                          </button>
+                          <button
+                            onClick={() => setEmojiPickerOpen(true)}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-stone-700 hover:bg-stone-100"
+                          >
+                            <Icon path={mdiEmoticonOutline} size={0.8} /> Emoji
+                            <Icon
+                              path={mdiChevronDown}
+                              size={0.6}
+                              className="ml-auto -rotate-90"
+                            />
+                          </button>
+                          <div className="my-1 border-t border-stone-100" />
+                          <button
+                            onClick={() => {
+                              addBlankPage();
+                              setInsertMenuOpen(false);
+                            }}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-stone-700 hover:bg-stone-100"
+                          >
+                            <Icon path={mdiFileDocumentPlusOutline} size={0.8} />{" "}
+                            Leere Seite
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleAddBlocker();
+                              setInsertMenuOpen(false);
+                            }}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-stone-700 hover:bg-stone-100"
+                          >
+                            <Icon path={mdiVectorRectangle} size={0.8} /> Leerraum
+                          </button>
+                          {!titlePage && (
+                            <button
+                              onClick={() => {
+                                setTitlePage({ title: "", subtitle: "" });
+                                setInsertMenuOpen(false);
+                              }}
+                              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-stone-700 hover:bg-stone-100"
+                            >
+                              <Icon
+                                path={mdiBookOpenPageVariantOutline}
+                                size={0.8}
+                              />{" "}
+                              Titelblatt
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <div>
+                          <button
+                            onClick={() => setEmojiPickerOpen(false)}
+                            className="mb-1 flex items-center gap-1 rounded px-1 py-0.5 text-xs text-stone-500 hover:text-stone-800"
+                          >
+                            <Icon path={mdiChevronLeft} size={0.6} /> zurück
+                          </button>
+                          <div className="grid grid-cols-7 gap-1">
+                            {EMOJI_PALETTE.map((em) => (
+                              <button
+                                key={em}
+                                onClick={() => {
+                                  handleInsertEmoji(em);
+                                  setInsertMenuOpen(false);
+                                  setEmojiPickerOpen(false);
+                                }}
+                                className="flex h-8 w-8 items-center justify-center rounded-md text-xl leading-none hover:bg-stone-100"
+                              >
+                                {em}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
             )}
+
+            {/* Seiten-Übersicht */}
+            {mode === "preview" && (
+              <button
+                onClick={() => setShowOverview((v) => !v)}
+                className={`inline-flex items-center justify-center rounded-lg border p-2 shadow-sm transition-colors ${
+                  showOverview
+                    ? "border-primary-500 bg-primary-50 text-primary-700"
+                    : "border-stone-300 bg-white text-stone-600 hover:bg-stone-50"
+                }`}
+                title="Seiten-Übersicht"
+                aria-label="Seiten-Übersicht"
+              >
+                <Icon path={mdiViewGridOutline} size={0.85} />
+              </button>
+            )}
+
             {excludedAssetIds.size > 0 && (
               <button
                 onClick={() => setShowExcludedPanel((v) => !v)}
-                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 font-medium transition-colors shadow-sm text-sm flex items-center gap-1.5"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:bg-stone-50"
                 title="Aus dem Buch entfernte Bilder anzeigen / wiederherstellen"
               >
                 <Icon path={mdiTrashCanOutline} size={0.7} />
                 {excludedAssetIds.size}
               </button>
             )}
+
+            {/* Einstellungen */}
+            <button
+              onClick={() => setSettingsOpen((v) => !v)}
+              className={`inline-flex items-center justify-center rounded-lg border p-2 shadow-sm transition-colors ${
+                settingsOpen
+                  ? "border-primary-500 bg-primary-50 text-primary-700"
+                  : "border-stone-300 bg-white text-stone-600 hover:bg-stone-50"
+              }`}
+              title="Einstellungen"
+              aria-label="Einstellungen"
+            >
+              <Icon path={mdiCogOutline} size={0.85} />
+            </button>
           </div>
         </div>
 
-        <div className="w-full lg:w-auto">
-          <button
-            onClick={() => setSettingsOpen((v) => !v)}
-            className="flex items-center gap-1.5 text-sm font-medium text-stone-600 hover:text-stone-900 transition-colors"
-          >
-            <svg
-              className={`w-4 h-4 transition-transform ${
-                settingsOpen ? "rotate-90" : ""
-              }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-            Einstellungen
-          </button>
+        <div className="w-full">
           {settingsOpen && (
-            <div className="space-y-2 mt-2">
+            <div className="space-y-2">
               {/* 1. Page Setup */}
           <div className="p-2 bg-stone-50 rounded border border-stone-300">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
@@ -2695,6 +2783,106 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             setDrawingBlockerId(null);
           }}
         >
+          {/* Seiten-Übersicht (Navigator) */}
+          {showOverview && (
+            <div
+              className="fixed right-0 top-0 bottom-0 z-40 flex w-60 flex-col border-l border-stone-200 bg-white/95 shadow-xl backdrop-blur"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-stone-200 px-3 py-2">
+                <span className="text-sm font-semibold text-stone-700">
+                  Seiten-Übersicht
+                </span>
+                <button
+                  onClick={() => setShowOverview(false)}
+                  className="rounded p-1 text-stone-500 hover:bg-stone-100"
+                  aria-label="Übersicht schließen"
+                >
+                  <Icon path={mdiClose} size={0.8} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-2">
+                <div className="grid grid-cols-2 gap-2">
+                  {titlePage && (
+                    <button
+                      onClick={() =>
+                        document
+                          .getElementById("bookpage-title")
+                          ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                      }
+                      className="flex flex-col items-center gap-1 rounded-lg border border-stone-200 p-1.5 hover:border-primary-400 hover:bg-primary-50"
+                    >
+                      <span className="flex h-16 w-full items-center justify-center rounded bg-stone-100 text-stone-400">
+                        <Icon path={mdiBookOpenPageVariantOutline} size={0.9} />
+                      </span>
+                      <span className="text-[11px] text-stone-600">Titel</span>
+                    </button>
+                  )}
+                  {pageSequence.map((item) => {
+                    if (item.kind === "blank") {
+                      return (
+                        <button
+                          key={item.extra.id}
+                          onClick={() =>
+                            document
+                              .getElementById(`bookblank-${item.extra.id}`)
+                              ?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                              })
+                          }
+                          className="flex flex-col items-center gap-1 rounded-lg border border-dashed border-stone-300 p-1.5 hover:border-primary-400 hover:bg-primary-50"
+                        >
+                          <span className="flex h-16 w-full items-center justify-center rounded bg-stone-50 text-stone-400">
+                            <Icon path={mdiFileDocumentPlusOutline} size={0.9} />
+                          </span>
+                          <span className="text-[11px] text-stone-600">
+                            Leerseite
+                          </span>
+                        </button>
+                      );
+                    }
+                    const p = item.page;
+                    const firstPhoto = p.photos.find(
+                      (ph) => !isBlocker(ph.asset.id),
+                    );
+                    const thumb = firstPhoto
+                      ? `${immichConfig.baseUrl}/assets/${firstPhoto.asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`
+                      : null;
+                    return (
+                      <button
+                        key={p.pageNumber}
+                        onClick={() =>
+                          document
+                            .getElementById(`bookpage-${p.pageNumber}`)
+                            ?.scrollIntoView({
+                              behavior: "smooth",
+                              block: "start",
+                            })
+                        }
+                        className="flex flex-col items-center gap-1 rounded-lg border border-stone-200 p-1.5 hover:border-primary-400 hover:bg-primary-50"
+                      >
+                        <span className="block h-16 w-full overflow-hidden rounded bg-stone-100">
+                          {thumb && (
+                            <img
+                              src={thumb}
+                              loading="lazy"
+                              className="h-full w-full object-cover"
+                              draggable={false}
+                            />
+                          )}
+                        </span>
+                        <span className="text-[11px] text-stone-600">
+                          {p.pageNumber}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Werkzeugleiste Zeichenzone */}
           {drawingBlockerId && (
             <div
@@ -3084,7 +3272,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             </div>
           )}
           {titlePage && (
-            <div className="relative mb-10">
+            <div id="bookpage-title" className="relative mb-10 scroll-mt-40">
               <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
                 <span className="px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
                   Titelblatt
@@ -3237,7 +3425,11 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             const displayHeight = toPoints(page.height);
 
             return (
-              <div key={page.pageNumber} className="relative">
+              <div
+                key={page.pageNumber}
+                id={`bookpage-${page.pageNumber}`}
+                className="relative scroll-mt-40"
+              >
                 {/* Page number and alignment controls */}
                 {combinePages ? (
                   /* Combined pages mode - show controls above each logical page */
@@ -4012,27 +4204,26 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           </div>
                         )}
 
-                        {/* Crop + Beschriftung + Phase 3: unlock this auto image */}
+                        {/* Kompakte Foto-Werkzeugleiste (Icons) */}
                         {!isCropping && (
-                          <div className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-lg bg-stone-900/75 p-0.5 opacity-0 shadow backdrop-blur transition-opacity group-hover:opacity-100">
                             <button
-                              className="bg-stone-800/80 hover:bg-stone-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                              className="rounded p-1 text-white transition-colors hover:bg-white/20"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setCroppingAssetId(photoBox.asset.id);
                               }}
-                              title="Bildausschnitt anpassen"
+                              title="Bildausschnitt anpassen (Crop)"
+                              aria-label="Zuschneiden"
                             >
-                              Crop
+                              <Icon path={mdiCropRotate} size={0.7} />
                             </button>
                             <button
-                              className="bg-stone-800/80 hover:bg-stone-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                              className="rounded p-1 text-white transition-colors hover:bg-white/20"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                // Leeren Eintrag anlegen, damit die Caption-Leiste
-                                // erscheint, und direkt in den Bearbeitungsmodus.
                                 if (!imageCaptionTexts.has(photoBox.asset.id)) {
                                   setImageCaptionTexts((prev) =>
                                     new Map(prev).set(photoBox.asset.id, {
@@ -4043,58 +4234,62 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                 setEditingCaptionAssetId(photoBox.asset.id);
                               }}
                               title="Bildunterschrift hinzufügen/bearbeiten"
+                              aria-label="Bildunterschrift"
                             >
-                              Text
+                              <Icon path={mdiFormatText} size={0.7} />
                             </button>
                             <button
-                              className="bg-stone-800/80 hover:bg-stone-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                              className="rounded p-1 text-white transition-colors hover:bg-white/20"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 const pageId = String(page.pageNumber);
-                                const newEl = createImageElement(photoBox.asset.id, {
-                                  x: photoBox.x,
-                                  y: photoBox.y,
-                                  width: photoBox.width,
-                                  height: photoBox.height,
-                                });
+                                const newEl = createImageElement(
+                                  photoBox.asset.id,
+                                  {
+                                    x: photoBox.x,
+                                    y: photoBox.y,
+                                    width: photoBox.width,
+                                    height: photoBox.height,
+                                  },
+                                );
                                 setOverlayElements((prev) => ({
                                   ...prev,
                                   [pageId]: [...(prev[pageId] ?? []), newEl],
                                 }));
                               }}
                               title="Aus dem Auto-Layout lösen (frei platzierbar)"
+                              aria-label="Lösen"
                             >
-                              Lösen
+                              <Icon path={mdiImageEditOutline} size={0.7} />
+                            </button>
+                            <button
+                              className="rounded p-1 text-white transition-colors hover:bg-white/20"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleAddBlocker(photoBox.asset.id);
+                              }}
+                              title="Leerraum nach diesem Foto einfügen"
+                              aria-label="Leerraum einfügen"
+                            >
+                              <Icon path={mdiVectorRectangle} size={0.7} />
+                            </button>
+                            <span className="mx-0.5 h-4 w-px bg-white/25" />
+                            <button
+                              className="rounded p-1 text-white transition-colors hover:bg-red-500/80"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleExcludeAsset(photoBox.asset.id);
+                              }}
+                              title="Aus dem Fotobuch entfernen (bleibt in Immich)"
+                              aria-label="Entfernen"
+                            >
+                              <Icon path={mdiTrashCanOutline} size={0.7} />
                             </button>
                           </div>
                         )}
-
-                        {/* Aus dem Buch entfernen (bleibt in Immich) */}
-                        <button
-                          className="absolute bottom-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-red-600/90 hover:bg-red-700 text-white text-[10px] px-2 py-0.5 rounded shadow"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleExcludeAsset(photoBox.asset.id);
-                          }}
-                          title="Aus dem Fotobuch entfernen (bleibt in Immich)"
-                        >
-                          Entfernen
-                        </button>
-
-                        {/* Leerraum direkt nach diesem Foto einfügen */}
-                        <button
-                          className="absolute bottom-2 left-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-stone-800/80 hover:bg-stone-900 text-white text-[10px] px-2 py-0.5 rounded shadow"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleAddBlocker(photoBox.asset.id);
-                          }}
-                          title="Leerraum nach diesem Foto einfügen"
-                        >
-                          + Leerraum
-                        </button>
 
                         {/* Left drag handle */}
                         <div
