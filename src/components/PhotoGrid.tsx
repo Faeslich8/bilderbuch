@@ -19,6 +19,7 @@ import {
   LinearGradient,
   Stop,
   Rect,
+  Path,
 } from "@react-pdf/renderer";
 import {
   calculatePageLayout,
@@ -35,6 +36,7 @@ import {
   type ExtraPage,
   type CropPosition,
   type StyledText,
+  type DrawStroke,
 } from "../utils/albumConfig";
 import { toPoints, screenToLayoutPx } from "../utils/units";
 import { randomId } from "../utils/id";
@@ -192,6 +194,25 @@ const webPageBackgroundStyle = (bg: PageBackground) =>
 const pxToCm = (px: number) => Math.round((px / 300) * 2.54 * 10) / 10;
 const cmToPx = (cm: number) => Math.round((cm / 2.54) * 300);
 const mmToPx = (mm: number) => Math.round((mm / 25.4) * 300);
+
+// Farb-/Breiten-Presets für die Zeichenzonen.
+const PEN_COLORS = ["#1c1917", "#dc2626", "#2563eb", "#16a34a", "#f59e0b", "#ffffff"];
+const PEN_WIDTHS = [1.5, 3, 6, 10];
+
+// Einen Freihand-Strich (normalisierte Punkte 0..1) in ein SVG-Path-`d` mit
+// konkreten Maßen (w×h) übersetzen. Identisch für Web-SVG und react-pdf.
+const strokeToPath = (pts: number[], w: number, h: number): string => {
+  if (pts.length < 2) return "";
+  let d = "";
+  for (let i = 0; i + 1 < pts.length; i += 2) {
+    const x = (pts[i] * w).toFixed(1);
+    const y = (pts[i + 1] * h).toFixed(1);
+    d += (i === 0 ? "M" : "L") + x + " " + y + " ";
+  }
+  // Einzelpunkt -> winziges Segment, damit ein Punkt sichtbar wird.
+  if (pts.length === 2) d += "L" + (pts[0] * w + 0.1).toFixed(1) + " " + (pts[1] * h).toFixed(1);
+  return d.trim();
+};
 
 // DIN-A-Formate in mm (Hochformat, Breite × Höhe).
 const DIN_FORMATS: Record<string, [number, number]> = {
@@ -374,6 +395,16 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   );
   // Welcher Leerraum gerade bearbeitet wird (Doppelklick zum Editieren).
   const [editingBlockerId, setEditingBlockerId] = useState<string | null>(null);
+  // Freihand-Zeichnungen je Leerraum (Stift/Touch/Maus).
+  const [blockerDrawings, setBlockerDrawings] = useState<
+    Map<string, DrawStroke[]>
+  >(() => new Map(Object.entries(initialConfig.blockerDrawings)));
+  // Welcher Leerraum gerade im Zeichenmodus ist.
+  const [drawingBlockerId, setDrawingBlockerId] = useState<string | null>(null);
+  // Aktueller Stift (Farbe/Breite) und der gerade gezogene Strich.
+  const [penColor, setPenColor] = useState<string>(PEN_COLORS[0]);
+  const [penWidth, setPenWidth] = useState<number>(PEN_WIDTHS[1]);
+  const [liveStroke, setLiveStroke] = useState<number[] | null>(null);
   // Eigene Bildunterschrift (mit Stil) je assetId.
   const [imageCaptionTexts, setImageCaptionTexts] = useState<
     Map<string, StyledText>
@@ -523,6 +554,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       cropPositions: Object.fromEntries(cropPositions),
       blockerTexts: Object.fromEntries(blockerTexts),
       imageCaptionTexts: Object.fromEntries(imageCaptionTexts),
+      blockerDrawings: Object.fromEntries(blockerDrawings),
     };
     saveAlbumConfig(album.id, {
       ...config,
@@ -554,6 +586,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     cropPositions,
     blockerTexts,
     imageCaptionTexts,
+    blockerDrawings,
     titlePage,
     extraPages,
     isPageWidthValid,
@@ -720,6 +753,69 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     }
   };
 
+  /* --- Zeichenzonen (Pointer: Maus/Touch/Stift) --- */
+  // Normalisierte Position (0..1) eines Pointer-Events innerhalb eines Elements.
+  const pointerNorm = (
+    e: React.PointerEvent,
+    el: HTMLElement,
+  ): [number, number] => {
+    const r = el.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (e.clientX - r.left) / (r.width || 1)));
+    const y = Math.min(1, Math.max(0, (e.clientY - r.top) / (r.height || 1)));
+    return [x, y];
+  };
+  const handleDrawPointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    } catch {
+      /* kein aktiver Pointer (z. B. synthetisch) – ignorieren */
+    }
+    const [x, y] = pointerNorm(e, e.currentTarget as HTMLElement);
+    setLiveStroke([x, y]);
+  };
+  const handleDrawPointerMove = (e: React.PointerEvent) => {
+    if (!liveStroke) return;
+    e.preventDefault();
+    const [x, y] = pointerNorm(e, e.currentTarget as HTMLElement);
+    setLiveStroke((prev) => (prev ? [...prev, x, y] : prev));
+  };
+  const handleDrawPointerUp = (id: string) => {
+    setLiveStroke((prev) => {
+      if (prev && prev.length >= 2) {
+        const stroke: DrawStroke = {
+          pts: prev,
+          color: penColor,
+          width: penWidth,
+        };
+        setBlockerDrawings((dm) => {
+          const next = new Map(dm);
+          next.set(id, [...(dm.get(id) ?? []), stroke]);
+          return next;
+        });
+      }
+      return null;
+    });
+  };
+  const undoStroke = (id: string) =>
+    setBlockerDrawings((dm) => {
+      const cur = dm.get(id);
+      if (!cur || cur.length === 0) return dm;
+      const next = new Map(dm);
+      const rest = cur.slice(0, -1);
+      if (rest.length === 0) next.delete(id);
+      else next.set(id, rest);
+      return next;
+    });
+  const clearStrokes = (id: string) =>
+    setBlockerDrawings((dm) => {
+      if (!dm.has(id)) return dm;
+      const next = new Map(dm);
+      next.delete(id);
+      return next;
+    });
+
   // Reset all aspect ratio customizations
   const handleResetAllCustomizations = () => {
     setCustomAspectRatios(new Map());
@@ -874,7 +970,14 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       next.delete(id);
       return next;
     });
+    setBlockerDrawings((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
     if (editingBlockerId === id) setEditingBlockerId(null);
+    if (drawingBlockerId === id) setDrawingBlockerId(null);
   };
 
   // Phase 4: place an album image as a free element (centered on page 1, then movable).
@@ -2445,7 +2548,11 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       // Blocker: leerer Platz; mit optionalem Freitext (Leerraum).
                       if (isBlocker(photoBox.asset.id)) {
                         const bText = blockerTexts.get(photoBox.asset.id);
-                        if (!bText) return null;
+                        const bStrokes =
+                          blockerDrawings.get(photoBox.asset.id) ?? [];
+                        if (!bText && bStrokes.length === 0) return null;
+                        const bw = toPoints(photoBox.width);
+                        const bh = toPoints(photoBox.height);
                         return (
                           <View
                             key={photoBox.asset.id}
@@ -2453,26 +2560,52 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                               position: "absolute",
                               left: toPoints(photoBox.x),
                               top: toPoints(photoBox.y),
-                              width: toPoints(photoBox.width),
-                              height: toPoints(photoBox.height),
+                              width: bw,
+                              height: bh,
                               alignItems: "center",
                               justifyContent: "center",
                               padding: 8,
-                              ...(bText.backgroundColor
+                              ...(bText?.backgroundColor
                                 ? { backgroundColor: bText.backgroundColor }
                                 : {}),
                             }}
                           >
-                            <Text
-                              style={{
-                                fontFamily: bText.fontFamily ?? "Roboto",
-                                fontSize: bText.fontSize ?? 28,
-                                color: bText.color ?? "#1c1917",
-                                textAlign: "center",
-                              }}
-                            >
-                              {bText.text}
-                            </Text>
+                            {bText && (
+                              <Text
+                                style={{
+                                  fontFamily: bText.fontFamily ?? "Roboto",
+                                  fontSize: bText.fontSize ?? 28,
+                                  color: bText.color ?? "#1c1917",
+                                  textAlign: "center",
+                                }}
+                              >
+                                {bText.text}
+                              </Text>
+                            )}
+                            {bStrokes.length > 0 && (
+                              <Svg
+                                style={{
+                                  position: "absolute",
+                                  top: 0,
+                                  left: 0,
+                                }}
+                                width={bw}
+                                height={bh}
+                                viewBox={`0 0 ${bw} ${bh}`}
+                              >
+                                {bStrokes.map((s, si) => (
+                                  <Path
+                                    key={si}
+                                    d={strokeToPath(s.pts, bw, bh)}
+                                    fill="none"
+                                    stroke={s.color}
+                                    strokeWidth={s.width}
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                ))}
+                              </Svg>
+                            )}
                           </View>
                         );
                       }
@@ -2555,8 +2688,81 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           onClick={() => {
             setSelectedElementId(null);
             finishTextEditing();
+            setDrawingBlockerId(null);
           }}
         >
+          {/* Werkzeugleiste Zeichenzone */}
+          {drawingBlockerId && (
+            <div
+              className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg border border-stone-300 bg-white/95 px-3 py-1.5 shadow-lg"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span className="text-xs font-medium text-stone-500">Stift</span>
+              {PEN_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setPenColor(c)}
+                  className={`h-5 w-5 rounded-full border ${
+                    penColor === c
+                      ? "ring-2 ring-primary-500 ring-offset-1"
+                      : "border-stone-300"
+                  }`}
+                  style={{ backgroundColor: c }}
+                  title={`Farbe ${c}`}
+                />
+              ))}
+              <input
+                type="color"
+                value={penColor}
+                onChange={(e) => setPenColor(e.target.value)}
+                title="Eigene Farbe"
+                className="h-6 w-7 cursor-pointer"
+              />
+              <span className="ml-1 text-xs text-stone-500">Breite</span>
+              {PEN_WIDTHS.map((w) => (
+                <button
+                  key={w}
+                  onClick={() => setPenWidth(w)}
+                  className={`flex h-6 w-6 items-center justify-center rounded border ${
+                    penWidth === w
+                      ? "bg-primary-500 border-primary-500"
+                      : "bg-white border-stone-300 hover:bg-stone-50"
+                  }`}
+                  title={`Strichbreite ${w}`}
+                >
+                  <span
+                    className="block rounded-full"
+                    style={{
+                      width: `${Math.min(14, w + 2)}px`,
+                      height: `${Math.min(14, w + 2)}px`,
+                      backgroundColor: penWidth === w ? "#fff" : "#57534e",
+                    }}
+                  />
+                </button>
+              ))}
+              <button
+                onClick={() => undoStroke(drawingBlockerId)}
+                className="text-xs px-2 py-0.5 bg-white border border-stone-300 rounded hover:bg-stone-50"
+                title="Letzten Strich zurücknehmen"
+              >
+                Rückgängig
+              </button>
+              <button
+                onClick={() => clearStrokes(drawingBlockerId)}
+                className="text-xs px-2 py-0.5 bg-white border border-stone-300 rounded hover:bg-stone-50"
+                title="Alle Striche löschen"
+              >
+                Leeren
+              </button>
+              <button
+                onClick={() => setDrawingBlockerId(null)}
+                className="text-xs px-2 py-0.5 bg-primary-600 hover:bg-primary-700 text-white rounded"
+              >
+                Fertig
+              </button>
+            </div>
+          )}
+
           {/* Stil-Leiste für Leerraum-Text / Bildunterschrift */}
           {(editingBlockerId || editingCaptionAssetId) &&
             (() => {
@@ -3337,6 +3543,12 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         fontSize: `${blockerEntry?.fontSize ?? 28}px`,
                         color: blockerEntry?.color ?? "#1c1917",
                       };
+                      const isDrawing =
+                        drawingBlockerId === photoBox.asset.id;
+                      const strokes =
+                        blockerDrawings.get(photoBox.asset.id) ?? [];
+                      const bw = containerWidth;
+                      const bh = toPoints(photoBox.height);
                       return (
                         <div
                           key={photoBox.asset.id}
@@ -3367,10 +3579,12 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-lg z-10" />
                           )}
                           <div
-                            className={`w-full h-full border-2 border-dashed flex items-center justify-center p-3 text-center ${
-                              isEditingBlocker
-                                ? "border-primary-400"
-                                : "border-stone-300"
+                            className={`relative w-full h-full overflow-hidden border-2 border-dashed flex items-center justify-center p-3 text-center ${
+                              isDrawing
+                                ? "border-primary-500"
+                                : isEditingBlocker
+                                  ? "border-primary-400"
+                                  : "border-stone-300"
                             }`}
                             style={{
                               backgroundColor:
@@ -3402,23 +3616,103 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                               >
                                 {blockerText}
                               </span>
-                            ) : (
+                            ) : !isDrawing && strokes.length === 0 ? (
                               <span className="text-xs text-stone-400 select-none">
-                                Leerraum · Doppelklick für Text
+                                Leerraum · Doppelklick für Text · „Zeichnen"
                               </span>
+                            ) : null}
+
+                            {/* Zeichnung (immer sichtbar, nicht interaktiv) */}
+                            {strokes.length > 0 && (
+                              <svg
+                                className="pointer-events-none absolute inset-0"
+                                width="100%"
+                                height="100%"
+                                viewBox={`0 0 ${bw} ${bh}`}
+                                preserveAspectRatio="none"
+                              >
+                                {strokes.map((s, si) => (
+                                  <path
+                                    key={si}
+                                    d={strokeToPath(s.pts, bw, bh)}
+                                    fill="none"
+                                    stroke={s.color}
+                                    strokeWidth={s.width}
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                ))}
+                              </svg>
+                            )}
+
+                            {/* Interaktive Zeichenfläche (Stift/Touch/Maus) */}
+                            {isDrawing && (
+                              <svg
+                                className="absolute inset-0 z-10"
+                                style={{
+                                  touchAction: "none",
+                                  cursor: "crosshair",
+                                }}
+                                width="100%"
+                                height="100%"
+                                viewBox={`0 0 ${bw} ${bh}`}
+                                preserveAspectRatio="none"
+                                onPointerDown={handleDrawPointerDown}
+                                onPointerMove={handleDrawPointerMove}
+                                onPointerUp={() =>
+                                  handleDrawPointerUp(photoBox.asset.id)
+                                }
+                                onPointerLeave={() =>
+                                  handleDrawPointerUp(photoBox.asset.id)
+                                }
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {liveStroke && liveStroke.length >= 2 && (
+                                  <path
+                                    d={strokeToPath(liveStroke, bw, bh)}
+                                    fill="none"
+                                    stroke={penColor}
+                                    strokeWidth={penWidth}
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                )}
+                              </svg>
                             )}
                           </div>
-                          <button
-                            className="absolute top-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white text-[10px] px-2 py-0.5 rounded shadow"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleDeleteBlocker(photoBox.asset.id);
-                            }}
-                            title="Leerraum entfernen"
-                          >
-                            Entfernen
-                          </button>
+                          {/* Zeichnen-Umschalter + Entfernen (nicht während Textbearbeitung) */}
+                          {!isEditingBlocker && (
+                            <div className="absolute top-1 right-1 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                className={`text-[10px] px-2 py-0.5 rounded shadow text-white ${
+                                  isDrawing
+                                    ? "bg-primary-600 hover:bg-primary-700"
+                                    : "bg-stone-800/80 hover:bg-stone-900"
+                                }`}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setDrawingBlockerId(
+                                    isDrawing ? null : photoBox.asset.id,
+                                  );
+                                }}
+                                title="Zeichenzone: mit Stift/Finger/Maus zeichnen"
+                              >
+                                {isDrawing ? "Fertig" : "Zeichnen"}
+                              </button>
+                              <button
+                                className="bg-red-500 hover:bg-red-600 text-white text-[10px] px-2 py-0.5 rounded shadow"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDeleteBlocker(photoBox.asset.id);
+                                }}
+                                title="Leerraum entfernen"
+                              >
+                                Entfernen
+                              </button>
+                            </div>
+                          )}
                           <div
                             className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-transparent group-hover:bg-primary-400/50 transition-colors"
                             onMouseDown={(e) =>
