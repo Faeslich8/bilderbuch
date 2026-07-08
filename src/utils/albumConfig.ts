@@ -65,6 +65,18 @@ export interface StyledText {
 }
 
 /**
+ * Ein Freihand-Strich in einer Zeichenzone (Leerraum).
+ * pts: Punkte in normalisierten Box-Koordinaten (0..1), flach [x0,y0,x1,y1,…],
+ * damit die Zeichnung mit der Box-Größe skaliert.
+ */
+export interface DrawStroke {
+  pts: number[];
+  color: string;
+  /** Strichbreite in Render-Punkten (Web px / PDF pt). */
+  width: number;
+}
+
+/**
  * Bildausschnitt eines Fotos.
  * - x/y: object-position in Prozent (50/50 = Mitte, Default).
  * - scale: Zoomfaktor (>= 1). >1 zoomt in das Bild hinein, sodass sich per x/y
@@ -127,6 +139,8 @@ export interface AlbumConfig extends GlobalConfig {
   blockerTexts: Record<string, StyledText>;
   /** Eigene Bildunterschrift je assetId (überschreibt die Immich-Beschreibung). */
   imageCaptionTexts: Record<string, StyledText>;
+  /** Freihand-Zeichnungen je Leerraum-Id. */
+  blockerDrawings: Record<string, DrawStroke[]>;
 }
 
 /** Album-Konfiguration im neuen Format (V2). */
@@ -153,6 +167,8 @@ export interface AlbumConfigV2 extends GlobalConfig {
   blockerTexts: Record<string, StyledText>;
   /** Eigene Bildunterschrift je assetId (überschreibt die Immich-Beschreibung). */
   imageCaptionTexts: Record<string, StyledText>;
+  /** Freihand-Zeichnungen je Leerraum-Id. */
+  blockerDrawings: Record<string, DrawStroke[]>;
 }
 
 /**
@@ -339,6 +355,7 @@ export function saveAlbumConfig(
       cropPositions: config.cropPositions ?? {},
       blockerTexts: config.blockerTexts ?? {},
       imageCaptionTexts: config.imageCaptionTexts ?? {},
+      blockerDrawings: config.blockerDrawings ?? {},
       overlayElements: config.overlayElements ?? {},
       imageCaptions,
       excludedAssetIds: config.excludedAssetIds ?? [],

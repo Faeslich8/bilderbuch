@@ -23,6 +23,7 @@ import type {
   ExtraPage,
   CropPosition,
   StyledText,
+  DrawStroke,
 } from "./albumConfig";
 
 const SCHEMA_VERSION = 2 as const;
@@ -177,6 +178,37 @@ function sanitizeStyledTextRecord(raw: unknown): Record<string, StyledText> {
   return out;
 }
 
+/** Freihand-Zeichnungen je Leerraum defensiv säubern. */
+function sanitizeBlockerDrawings(
+  raw: unknown,
+): Record<string, DrawStroke[]> {
+  const out: Record<string, DrawStroke[]> = {};
+  if (!isPlainObject(raw)) return out;
+  for (const [key, strokes] of Object.entries(raw)) {
+    if (!Array.isArray(strokes)) continue;
+    const valid: DrawStroke[] = [];
+    for (const s of strokes) {
+      if (
+        isPlainObject(s) &&
+        Array.isArray(s.pts) &&
+        s.pts.length >= 2 &&
+        s.pts.every((n) => typeof n === "number" && Number.isFinite(n)) &&
+        typeof s.color === "string" &&
+        typeof s.width === "number" &&
+        Number.isFinite(s.width)
+      ) {
+        valid.push({
+          pts: s.pts as number[],
+          color: s.color,
+          width: Math.min(80, Math.max(0.5, s.width)),
+        });
+      }
+    }
+    if (valid.length > 0) out[key] = valid;
+  }
+  return out;
+}
+
 function pickGlobal(
   raw: Record<string, unknown>,
   fallback: GlobalConfig,
@@ -219,6 +251,7 @@ export function migrateRawAlbumConfig(
       cropPositions: {},
       blockerTexts: {},
       imageCaptionTexts: {},
+      blockerDrawings: {},
       overlayElements: {},
       imageCaptions: {},
       excludedAssetIds: [],
@@ -253,6 +286,7 @@ export function migrateRawAlbumConfig(
       cropPositions: sanitizeCropPositions(raw.cropPositions),
       blockerTexts: sanitizeStyledTextRecord(raw.blockerTexts),
       imageCaptionTexts: sanitizeStyledTextRecord(raw.imageCaptionTexts),
+      blockerDrawings: sanitizeBlockerDrawings(raw.blockerDrawings),
       overlayElements: sanitizeOverlayElements(raw.overlayElements),
       imageCaptions: sanitizeImageCaptions(raw.imageCaptions),
       excludedAssetIds,
@@ -271,6 +305,7 @@ export function migrateRawAlbumConfig(
     cropPositions: {},
     blockerTexts: {},
     imageCaptionTexts: {},
+    blockerDrawings: {},
     overlayElements: {},
     imageCaptions: captionsFromDescriptionPositions(raw.descriptionPositions),
     excludedAssetIds,
