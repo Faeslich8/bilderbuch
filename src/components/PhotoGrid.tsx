@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { createPortal } from "react-dom";
 import {
   getAlbumInfo,
@@ -34,6 +34,7 @@ import {
   type TitlePageConfig,
   type ExtraPage,
   type CropPosition,
+  type StyledText,
 } from "../utils/albumConfig";
 import { toPoints, screenToLayoutPx } from "../utils/units";
 import { randomId } from "../utils/id";
@@ -71,6 +72,10 @@ import type { ImmichConfig } from "./ConnectionForm";
 import roboto400 from "@fontsource/roboto/files/roboto-latin-400-normal.woff?url";
 import roboto500 from "@fontsource/roboto/files/roboto-latin-500-normal.woff?url";
 import roboto700 from "@fontsource/roboto/files/roboto-latin-700-normal.woff?url";
+import lora400 from "@fontsource/lora/files/lora-latin-400-normal.woff?url";
+import lora700 from "@fontsource/lora/files/lora-latin-700-normal.woff?url";
+import robotoMono400 from "@fontsource/roboto-mono/files/roboto-mono-latin-400-normal.woff?url";
+import robotoMono700 from "@fontsource/roboto-mono/files/roboto-mono-latin-700-normal.woff?url";
 import Icon from "@mdi/react";
 import {
   mdiFormatAlignLeft,
@@ -80,7 +85,7 @@ import {
   mdiFilePlusOutline,
 } from "@mdi/js";
 
-// Register Roboto font for PDF using local bundled files
+// Register fonts for PDF using local bundled files
 Font.register({
   family: "Roboto",
   fonts: [
@@ -89,6 +94,27 @@ Font.register({
     { src: roboto700, fontWeight: 700 },
   ],
 });
+Font.register({
+  family: "Lora",
+  fonts: [
+    { src: lora400, fontWeight: 400 },
+    { src: lora700, fontWeight: 700 },
+  ],
+});
+Font.register({
+  family: "Roboto Mono",
+  fonts: [
+    { src: robotoMono400, fontWeight: 400 },
+    { src: robotoMono700, fontWeight: 700 },
+  ],
+});
+
+// Auswählbare Schriftfamilien (Web-Vorschau UND PDF-Export identisch).
+const FONT_FAMILIES: { label: string; value: string }[] = [
+  { label: "Sans", value: "Roboto" },
+  { label: "Serif", value: "Lora" },
+  { label: "Mono", value: "Roboto Mono" },
+];
 
 // Farb-Emoji im PDF: jedes Emoji wird zur PDF-Zeit per Canvas aus der OS-Emoji-Schrift
 // in eine PNG-Data-URL gerendert — farbig, offline, ohne gebündelte Dateien, volle Abdeckung.
@@ -165,6 +191,41 @@ const webPageBackgroundStyle = (bg: PageBackground) =>
 // Seitenmaße-Eingabe in cm (intern px @ 300 DPI).
 const pxToCm = (px: number) => Math.round((px / 300) * 2.54 * 10) / 10;
 const cmToPx = (cm: number) => Math.round((cm / 2.54) * 300);
+const mmToPx = (mm: number) => Math.round((mm / 25.4) * 300);
+
+// DIN-A-Formate in mm (Hochformat, Breite × Höhe).
+const DIN_FORMATS: Record<string, [number, number]> = {
+  A3: [297, 420],
+  A4: [210, 297],
+  A5: [148, 210],
+  A6: [105, 148],
+};
+
+// px-Maße für ein DIN-Format in der gewünschten Orientierung.
+const dinToPx = (
+  format: keyof typeof DIN_FORMATS,
+  landscape: boolean,
+): { width: number; height: number } => {
+  const [w, h] = DIN_FORMATS[format];
+  return {
+    width: mmToPx(landscape ? h : w),
+    height: mmToPx(landscape ? w : h),
+  };
+};
+
+// Aus px-Maßen das passende DIN-Format ableiten (±2 px Toleranz), sonst "custom".
+const detectDinFormat = (width: number, height: number): string => {
+  const long = Math.max(width, height);
+  const short = Math.min(width, height);
+  for (const [name, [wmm, hmm]] of Object.entries(DIN_FORMATS)) {
+    if (
+      Math.abs(short - mmToPx(wmm)) <= 3 &&
+      Math.abs(long - mmToPx(hmm)) <= 3
+    )
+      return name;
+  }
+  return "custom";
+};
 
 // Externe Bilddatei -> herunterskalierte Data-URL (für lokale Einbettung im Buch).
 async function fileToImageElementData(
@@ -307,15 +368,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   >(() => new Map(Object.entries(initialConfig.cropPositions)));
   // Welches Foto sich gerade im Crop-Modus befindet (Bildausschnitt per Drag anpassen).
   const [croppingAssetId, setCroppingAssetId] = useState<string | null>(null);
-  // Freitext in Leerräumen (Blocker) je Blocker-Id.
-  const [blockerTexts, setBlockerTexts] = useState<Map<string, string>>(
+  // Freitext (mit Stil) in Leerräumen (Blocker) je Blocker-Id.
+  const [blockerTexts, setBlockerTexts] = useState<Map<string, StyledText>>(
     () => new Map(Object.entries(initialConfig.blockerTexts)),
   );
   // Welcher Leerraum gerade bearbeitet wird (Doppelklick zum Editieren).
   const [editingBlockerId, setEditingBlockerId] = useState<string | null>(null);
-  // Eigene Bildunterschrift je assetId.
+  // Eigene Bildunterschrift (mit Stil) je assetId.
   const [imageCaptionTexts, setImageCaptionTexts] = useState<
-    Map<string, string>
+    Map<string, StyledText>
   >(() => new Map(Object.entries(initialConfig.imageCaptionTexts)));
   // Welche Bildunterschrift gerade bearbeitet wird.
   const [editingCaptionAssetId, setEditingCaptionAssetId] = useState<
@@ -383,6 +444,16 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const [heightCmInput, setHeightCmInput] = useState(
     String(pxToCm(initialConfig.pageHeight)),
   );
+
+  // Seitenmaße setzen (px + cm-Felder synchron halten).
+  const applyPageSize = (width: number, height: number) => {
+    setPageWidth(width);
+    setPageHeight(height);
+    setWidthCmInput(String(pxToCm(width)));
+    setHeightCmInput(String(pxToCm(height)));
+  };
+  const currentDinFormat = detectDinFormat(pageWidth, pageHeight);
+  const isLandscape = pageWidth > pageHeight;
 
   // Images removed from the book (kept in Immich); plus the restore-panel toggle.
   const [excludedAssetIds, setExcludedAssetIds] = useState<Set<string>>(
@@ -583,24 +654,70 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     });
   };
 
-  // Freitext eines Leerraums (Blocker) setzen; leer -> Eintrag entfernen.
-  const setBlockerText = (id: string, text: string) => {
-    setBlockerTexts((prev) => {
+  // Generischer Text-Setter für eine StyledText-Map; leerer Text -> Eintrag weg
+  // (behält aber vorhandenen Stil, solange Text vorhanden ist).
+  const setStyledMapText = (
+    setter: React.Dispatch<React.SetStateAction<Map<string, StyledText>>>,
+    key: string,
+    text: string,
+  ) => {
+    setter((prev) => {
       const next = new Map(prev);
-      if (text.trim().length === 0) next.delete(id);
-      else next.set(id, text);
+      if (text.trim().length === 0) {
+        next.delete(key);
+      } else {
+        next.set(key, { ...(prev.get(key) ?? { text: "" }), text });
+      }
       return next;
     });
   };
-
-  // Eigene Bildunterschrift setzen; leer -> Eintrag entfernen.
-  const setImageCaptionText = (assetId: string, text: string) => {
-    setImageCaptionTexts((prev) => {
+  // Stil-Patch (Größe/Farbe/Schriftart/Hintergrund) auf einen Eintrag anwenden.
+  const patchStyledMap = (
+    setter: React.Dispatch<React.SetStateAction<Map<string, StyledText>>>,
+    key: string,
+    patch: Partial<StyledText>,
+  ) => {
+    setter((prev) => {
       const next = new Map(prev);
-      if (text.trim().length === 0) next.delete(assetId);
-      else next.set(assetId, text);
+      next.set(key, { ...(prev.get(key) ?? { text: "" }), ...patch });
       return next;
     });
+  };
+  const setBlockerText = (id: string, text: string) =>
+    setStyledMapText(setBlockerTexts, id, text);
+  const setImageCaptionText = (assetId: string, text: string) =>
+    setStyledMapText(setImageCaptionTexts, assetId, text);
+
+  // Stil-Patch auf das gerade bearbeitete Element (Leerraum ODER Bildunterschrift).
+  const patchActiveStyle = (patch: Partial<StyledText>) => {
+    if (editingBlockerId)
+      patchStyledMap(setBlockerTexts, editingBlockerId, patch);
+    else if (editingCaptionAssetId)
+      patchStyledMap(setImageCaptionTexts, editingCaptionAssetId, patch);
+  };
+
+  // Beim Verlassen des Edit-Modus leere Einträge (nur Button, kein Text) entfernen.
+  const finishTextEditing = () => {
+    if (editingBlockerId) {
+      const t = blockerTexts.get(editingBlockerId)?.text ?? "";
+      if (t.trim().length === 0)
+        setBlockerTexts((prev) => {
+          const n = new Map(prev);
+          n.delete(editingBlockerId);
+          return n;
+        });
+      setEditingBlockerId(null);
+    }
+    if (editingCaptionAssetId) {
+      const t = imageCaptionTexts.get(editingCaptionAssetId)?.text ?? "";
+      if (t.trim().length === 0)
+        setImageCaptionTexts((prev) => {
+          const n = new Map(prev);
+          n.delete(editingCaptionAssetId);
+          return n;
+        });
+      setEditingCaptionAssetId(null);
+    }
   };
 
   // Reset all aspect ratio customizations
@@ -1194,10 +1311,22 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   // Determine pageLayout based on combinePages setting
   const pageLayout = combinePages ? "singlePage" : "twoPageLeft";
 
-  // Titelblatt-Maße (eigene erste Seite, gleiche Breite wie die Auto-Seiten).
-  const titlePageWidthPx = combinePages ? validPageWidth * 2 : validPageWidth;
+  // Titelblatt-Maße. Das Titelblatt kann eine eigene Orientierung haben
+  // (titlePage.orientation); fehlt sie, folgt es dem Buchformat.
+  const pageIsLandscape = validPageWidth > validPageHeight;
+  const titleOrientation: "portrait" | "landscape" =
+    titlePage?.orientation ?? (pageIsLandscape ? "landscape" : "portrait");
+  const titleShortPx = Math.min(validPageWidth, validPageHeight);
+  const titleLongPx = Math.max(validPageWidth, validPageHeight);
+  const titleSingleWidthPx =
+    titleOrientation === "landscape" ? titleLongPx : titleShortPx;
+  const titlePageHeightPx =
+    titleOrientation === "landscape" ? titleShortPx : titleLongPx;
+  const titlePageWidthPx = combinePages
+    ? titleSingleWidthPx * 2
+    : titleSingleWidthPx;
   const titleDisplayW = toPoints(titlePageWidthPx);
-  const titleDisplayH = toPoints(validPageHeight);
+  const titleDisplayH = toPoints(titlePageHeightPx);
   const titleTextColor = pageBackground === "darkbrown" ? "#f5f0e6" : "#1c1917";
 
   // Overlay-Ebene (freie Elemente) einer Seite — für Auto- UND Leerseiten,
@@ -1668,59 +1797,125 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           <div className="p-2 bg-stone-50 rounded border border-stone-300">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
               <h3 className="text-xs font-semibold text-stone-700 sm:w-28">
-                Seite (cm)
+                Seitenformat
               </h3>
               <div className="flex flex-wrap items-center gap-2 sm:gap-1">
-                <div className="flex items-center gap-1">
-                  <label htmlFor="pageWidth" className="text-stone-600 text-xs">
-                    Breite:
-                  </label>
-                  <input
-                    type="number"
-                    id="pageWidth"
-                    value={widthCmInput}
-                    onChange={(e) => {
-                      setWidthCmInput(e.target.value);
-                      const cm = Number(e.target.value);
-                      if (!isNaN(cm) && cm > 0) {
-                        setPageWidth(cmToPx(cm));
-                      }
-                    }}
-                    min="8"
-                    max="85"
-                    step="0.1"
-                    className={`px-1 py-0.5 w-16 text-xs border rounded ${
-                      isPageWidthValid
-                        ? "border-stone-300"
-                        : "border-red-500 bg-red-50"
-                    }`}
-                  />
+                {/* DIN-Format */}
+                <select
+                  value={currentDinFormat}
+                  onChange={(e) => {
+                    const fmt = e.target.value;
+                    if (fmt === "custom") return; // cm-Felder erscheinen
+                    applyPageSize(
+                      dinToPx(fmt, isLandscape).width,
+                      dinToPx(fmt, isLandscape).height,
+                    );
+                  }}
+                  className="px-1 py-0.5 text-xs border border-stone-300 rounded bg-white"
+                  title="Seitenformat"
+                >
+                  {Object.keys(DIN_FORMATS).map((f) => (
+                    <option key={f} value={f}>
+                      DIN {f}
+                    </option>
+                  ))}
+                  <option value="custom">Benutzerdefiniert</option>
+                </select>
+
+                {/* Hoch/Quer */}
+                <div className="flex gap-1">
+                  {(
+                    [
+                      ["portrait", "Hoch"],
+                      ["landscape", "Quer"],
+                    ] as const
+                  ).map(([val, label]) => {
+                    const active =
+                      (val === "landscape") === isLandscape;
+                    return (
+                      <button
+                        key={val}
+                        onClick={() => {
+                          const landscape = val === "landscape";
+                          if (landscape === isLandscape) return;
+                          if (currentDinFormat !== "custom") {
+                            const d = dinToPx(currentDinFormat, landscape);
+                            applyPageSize(d.width, d.height);
+                          } else {
+                            applyPageSize(pageHeight, pageWidth); // Maße tauschen
+                          }
+                        }}
+                        className={`px-2 py-0.5 text-xs rounded border ${
+                          active
+                            ? "bg-primary-500 text-white border-primary-500"
+                            : "bg-white border-stone-300 hover:bg-stone-50"
+                        }`}
+                        title={label + "format"}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="flex items-center gap-1">
-                  <label htmlFor="pageHeight" className="text-stone-600 text-xs">
-                    Höhe:
-                  </label>
-                  <input
-                    type="number"
-                    id="pageHeight"
-                    value={heightCmInput}
-                    onChange={(e) => {
-                      setHeightCmInput(e.target.value);
-                      const cm = Number(e.target.value);
-                      if (!isNaN(cm) && cm > 0) {
-                        setPageHeight(cmToPx(cm));
-                      }
-                    }}
-                    min="8"
-                    max="85"
-                    step="0.1"
-                    className={`px-1 py-0.5 w-16 text-xs border rounded ${
-                      isPageHeightValid
-                        ? "border-stone-300"
-                        : "border-red-500 bg-red-50"
-                    }`}
-                  />
-                </div>
+
+                {/* cm-Felder nur bei benutzerdefiniert */}
+                {currentDinFormat === "custom" && (
+                  <>
+                    <div className="flex items-center gap-1">
+                      <label
+                        htmlFor="pageWidth"
+                        className="text-stone-600 text-xs"
+                      >
+                        B(cm):
+                      </label>
+                      <input
+                        type="number"
+                        id="pageWidth"
+                        value={widthCmInput}
+                        onChange={(e) => {
+                          setWidthCmInput(e.target.value);
+                          const cm = Number(e.target.value);
+                          if (!isNaN(cm) && cm > 0) setPageWidth(cmToPx(cm));
+                        }}
+                        min="8"
+                        max="85"
+                        step="0.1"
+                        className={`px-1 py-0.5 w-14 text-xs border rounded ${
+                          isPageWidthValid
+                            ? "border-stone-300"
+                            : "border-red-500 bg-red-50"
+                        }`}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <label
+                        htmlFor="pageHeight"
+                        className="text-stone-600 text-xs"
+                      >
+                        H(cm):
+                      </label>
+                      <input
+                        type="number"
+                        id="pageHeight"
+                        value={heightCmInput}
+                        onChange={(e) => {
+                          setHeightCmInput(e.target.value);
+                          const cm = Number(e.target.value);
+                          if (!isNaN(cm) && cm > 0) setPageHeight(cmToPx(cm));
+                        }}
+                        min="8"
+                        max="85"
+                        step="0.1"
+                        className={`px-1 py-0.5 w-14 text-xs border rounded ${
+                          isPageHeightValid
+                            ? "border-stone-300"
+                            : "border-red-500 bg-red-50"
+                        }`}
+                      />
+                    </div>
+                  </>
+                )}
+
                 <div className="flex items-center gap-1">
                   <input
                     type="checkbox"
@@ -2095,7 +2290,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 <Page
                   size={{
                     width: toPoints(titlePageWidthPx),
-                    height: toPoints(validPageHeight),
+                    height: toPoints(titlePageHeightPx),
                   }}
                   style={[
                     staticStyles.page,
@@ -2106,11 +2301,11 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     <Text
                       style={{
                         position: "absolute",
-                        top: toPoints(validPageHeight) * 0.08,
+                        top: toPoints(titlePageHeightPx) * 0.08,
                         left: "8%",
                         width: "84%",
                         textAlign: "center",
-                        fontSize: toPoints(validPageHeight) * 0.06,
+                        fontSize: toPoints(titlePageHeightPx) * 0.06,
                         fontFamily: "Roboto",
                         fontWeight: 700,
                         color: titleTextColor,
@@ -2124,10 +2319,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       src={titlePage.imageSrc}
                       style={{
                         position: "absolute",
-                        top: toPoints(validPageHeight) * 0.26,
+                        top: toPoints(titlePageHeightPx) * 0.26,
                         left: "18%",
                         width: "64%",
-                        height: toPoints(validPageHeight) * 0.48,
+                        height: toPoints(titlePageHeightPx) * 0.48,
                         objectFit: "contain",
                       }}
                     />
@@ -2136,11 +2331,11 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     <Text
                       style={{
                         position: "absolute",
-                        top: toPoints(validPageHeight) * 0.78,
+                        top: toPoints(titlePageHeightPx) * 0.78,
                         left: "12%",
                         width: "76%",
                         textAlign: "center",
-                        fontSize: toPoints(validPageHeight) * 0.03,
+                        fontSize: toPoints(titlePageHeightPx) * 0.03,
                         fontFamily: "Roboto",
                         color: titleTextColor,
                       }}
@@ -2237,17 +2432,20 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                               alignItems: "center",
                               justifyContent: "center",
                               padding: 8,
+                              ...(bText.backgroundColor
+                                ? { backgroundColor: bText.backgroundColor }
+                                : {}),
                             }}
                           >
                             <Text
                               style={{
-                                fontFamily: "Roboto",
-                                fontSize: fontSize,
-                                color: "#000000",
+                                fontFamily: bText.fontFamily ?? "Roboto",
+                                fontSize: bText.fontSize ?? 28,
+                                color: bText.color ?? "#1c1917",
                                 textAlign: "center",
                               }}
                             >
-                              {bText}
+                              {bText.text}
                             </Text>
                           </View>
                         );
@@ -2256,39 +2454,65 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       const customCaption = imageCaptionTexts.get(
                         photoBox.asset.id,
                       );
-                      const descPosition = customCaption
-                        ? "bottom"
-                        : descriptionPositions.get(photoBox.asset.id) ||
-                          "bottom";
+                      const descPosition =
+                        descriptionPositions.get(photoBox.asset.id) || "bottom";
                       const hasDescription =
                         showDescriptions &&
+                        !customCaption &&
                         !!photoBox.asset.exifInfo?.description;
                       return (
-                        <PdfElement
-                          key={photoBox.asset.id}
-                          element={photoBoxToImageElement(photoBox, 0)}
-                          ctx={{
-                            imageUrl,
-                            descPosition,
-                            description:
-                              customCaption ??
-                              (hasDescription
+                        <Fragment key={photoBox.asset.id}>
+                          <PdfElement
+                            element={photoBoxToImageElement(photoBox, 0)}
+                            ctx={{
+                              imageUrl,
+                              descPosition,
+                              description: hasDescription
                                 ? photoBox.asset.exifInfo?.description
-                                : undefined),
-                            dateText:
-                              showDates && photoBox.asset.fileCreatedAt
-                                ? new Date(
-                                    photoBox.asset.fileCreatedAt,
-                                  ).toLocaleDateString(undefined, {
-                                    year: "numeric",
-                                    month: "short",
-                                    day: "numeric",
-                                  })
                                 : undefined,
-                            styles: pdfStyles,
-                            cropPosition: cropPositions.get(photoBox.asset.id),
-                          }}
-                        />
+                              dateText:
+                                showDates && photoBox.asset.fileCreatedAt
+                                  ? new Date(
+                                      photoBox.asset.fileCreatedAt,
+                                    ).toLocaleDateString(undefined, {
+                                      year: "numeric",
+                                      month: "short",
+                                      day: "numeric",
+                                    })
+                                  : undefined,
+                              styles: pdfStyles,
+                              cropPosition: cropPositions.get(photoBox.asset.id),
+                            }}
+                          />
+                          {customCaption && (
+                            <View
+                              style={{
+                                position: "absolute",
+                                left: toPoints(photoBox.x),
+                                top:
+                                  toPoints(photoBox.y + photoBox.height) -
+                                  (customCaption.fontSize ?? 14) * 1.8,
+                                width: toPoints(photoBox.width),
+                                paddingHorizontal: 4,
+                                paddingVertical: 3,
+                                backgroundColor:
+                                  customCaption.backgroundColor ??
+                                  "rgba(255,255,255,0.7)",
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  fontFamily: customCaption.fontFamily ?? "Roboto",
+                                  fontSize: customCaption.fontSize ?? 14,
+                                  color: customCaption.color ?? "#000000",
+                                  textAlign: "center",
+                                }}
+                              >
+                                {customCaption.text}
+                              </Text>
+                            </View>
+                          )}
+                        </Fragment>
                       );
                     })}
                     {renderPdfOverlay(String(pageData.pageNumber))}
@@ -2302,8 +2526,93 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
         /* Live Preview */
         <div
           className="space-y-8 pb-8 overflow-x-auto px-4 sm:px-0"
-          onClick={() => setSelectedElementId(null)}
+          onClick={() => {
+            setSelectedElementId(null);
+            finishTextEditing();
+          }}
         >
+          {/* Stil-Leiste für Leerraum-Text / Bildunterschrift */}
+          {(editingBlockerId || editingCaptionAssetId) &&
+            (() => {
+              const st = editingBlockerId
+                ? blockerTexts.get(editingBlockerId)
+                : editingCaptionAssetId
+                  ? imageCaptionTexts.get(editingCaptionAssetId)
+                  : undefined;
+              const defSize = editingBlockerId ? 28 : fontSize;
+              return (
+                <div
+                  className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded border border-stone-300 bg-white/95 px-3 py-1.5 shadow-lg"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span className="text-xs text-stone-500">
+                    {editingBlockerId ? "Leerraum" : "Beschriftung"}
+                  </span>
+                  <select
+                    value={st?.fontFamily ?? "Roboto"}
+                    onChange={(e) =>
+                      patchActiveStyle({ fontFamily: e.target.value })
+                    }
+                    className="rounded border border-stone-300 px-1 py-0.5 text-xs"
+                    title="Schriftart"
+                  >
+                    {FONT_FAMILIES.map((f) => (
+                      <option key={f.value} value={f.value}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min={6}
+                    value={st?.fontSize ?? defSize}
+                    onChange={(e) =>
+                      patchActiveStyle({
+                        fontSize: Math.max(6, Number(e.target.value) || defSize),
+                      })
+                    }
+                    className="w-14 rounded border border-stone-300 px-1 py-0.5 text-xs"
+                    title="Schriftgröße"
+                  />
+                  <input
+                    type="color"
+                    value={st?.color ?? "#292524"}
+                    onChange={(e) => patchActiveStyle({ color: e.target.value })}
+                    className="h-6 w-8 cursor-pointer"
+                    title="Textfarbe"
+                  />
+                  <label
+                    className="flex items-center gap-1 text-xs text-stone-600"
+                    title="Textfeld-Hintergrund"
+                  >
+                    Hg
+                    <input
+                      type="color"
+                      value={st?.backgroundColor ?? "#ffffff"}
+                      onChange={(e) =>
+                        patchActiveStyle({ backgroundColor: e.target.value })
+                      }
+                      className="h-6 w-8 cursor-pointer"
+                    />
+                  </label>
+                  <button
+                    onClick={() =>
+                      patchActiveStyle({ backgroundColor: undefined })
+                    }
+                    className="rounded border border-stone-300 px-1.5 py-0.5 text-xs hover:bg-stone-50"
+                    title="Hintergrund entfernen (transparent)"
+                  >
+                    Hg ✕
+                  </button>
+                  <button
+                    onClick={() => finishTextEditing()}
+                    className="rounded bg-primary-600 px-2 py-0.5 text-xs text-white hover:bg-primary-700"
+                  >
+                    Fertig
+                  </button>
+                </div>
+              );
+            })()}
           {selectedElementId && (
             <div
               className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded border border-stone-300 bg-white/95 px-3 py-1.5 shadow-lg"
@@ -2536,10 +2845,36 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           )}
           {titlePage && (
             <div className="relative mb-10">
-              <div className="mb-2 flex items-center justify-center gap-2">
+              <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
                 <span className="px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
                   Titelblatt
                 </span>
+                {/* Hoch/Quer nur fürs Titelblatt */}
+                <div className="flex gap-1">
+                  {(
+                    [
+                      ["portrait", "Hoch"],
+                      ["landscape", "Quer"],
+                    ] as const
+                  ).map(([val, label]) => (
+                    <button
+                      key={val}
+                      onClick={() =>
+                        setTitlePage((p) =>
+                          p ? { ...p, orientation: val } : p,
+                        )
+                      }
+                      className={`text-xs px-2 py-0.5 rounded border ${
+                        titleOrientation === val
+                          ? "bg-primary-500 text-white border-primary-500"
+                          : "bg-white border-stone-300 hover:bg-stone-50"
+                      }`}
+                      title={`Titelblatt ${label}format`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <button
                   onClick={() => setTitlePage(null)}
                   className="text-xs px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded"
@@ -2950,14 +3285,14 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     );
                     const isEditingCaption =
                       editingCaptionAssetId === photoBox.asset.id;
-                    const descPosition = customCaption
-                      ? "bottom"
-                      : descriptionPositions.get(photoBox.asset.id) || "bottom";
+                    const descPosition =
+                      descriptionPositions.get(photoBox.asset.id) || "bottom";
+                    // Eigene Bildunterschrift verdrängt die Immich-Beschreibung.
                     const hasDescription =
                       showDescriptions &&
+                      !customCaption &&
                       !!photoBox.asset.exifInfo?.description;
                     const isLeftRight =
-                      !customCaption &&
                       hasDescription &&
                       (descPosition === "left" || descPosition === "right");
 
@@ -2969,8 +3304,13 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     if (isBlocker(photoBox.asset.id)) {
                       const isEditingBlocker =
                         editingBlockerId === photoBox.asset.id;
-                      const blockerText =
-                        blockerTexts.get(photoBox.asset.id) ?? "";
+                      const blockerEntry = blockerTexts.get(photoBox.asset.id);
+                      const blockerText = blockerEntry?.text ?? "";
+                      const blockerTextStyle = {
+                        fontFamily: blockerEntry?.fontFamily ?? "Roboto",
+                        fontSize: `${blockerEntry?.fontSize ?? 28}px`,
+                        color: blockerEntry?.color ?? "#1c1917",
+                      };
                       return (
                         <div
                           key={photoBox.asset.id}
@@ -3001,11 +3341,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-lg z-10" />
                           )}
                           <div
-                            className={`w-full h-full border-2 border-dashed bg-stone-50 flex items-center justify-center p-3 text-center ${
+                            className={`w-full h-full border-2 border-dashed flex items-center justify-center p-3 text-center ${
                               isEditingBlocker
                                 ? "border-primary-400"
                                 : "border-stone-300"
                             }`}
+                            style={{
+                              backgroundColor:
+                                blockerEntry?.backgroundColor ?? "#fafaf9",
+                            }}
                           >
                             {isEditingBlocker ? (
                               <textarea
@@ -3017,26 +3361,18 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                     ev.target.value,
                                   )
                                 }
-                                onBlur={() => setEditingBlockerId(null)}
                                 onKeyDown={(ev) => {
-                                  if (ev.key === "Escape")
-                                    (ev.target as HTMLTextAreaElement).blur();
+                                  if (ev.key === "Escape") finishTextEditing();
                                 }}
                                 onClick={(ev) => ev.stopPropagation()}
                                 placeholder="Text eingeben…"
-                                className="w-full h-full resize-none border-0 bg-transparent text-center text-stone-700 outline-none"
-                                style={{
-                                  fontFamily: "Roboto",
-                                  fontSize: `${toPoints(validPageHeight) * 0.02}px`,
-                                }}
+                                className="w-full h-full resize-none border-0 bg-transparent text-center outline-none"
+                                style={blockerTextStyle}
                               />
                             ) : blockerText ? (
                               <span
-                                className="whitespace-pre-wrap break-words text-stone-700"
-                                style={{
-                                  fontFamily: "Roboto",
-                                  fontSize: `${toPoints(validPageHeight) * 0.02}px`,
-                                }}
+                                className="whitespace-pre-wrap break-words"
+                                style={blockerTextStyle}
                               >
                                 {blockerText}
                               </span>
@@ -3123,11 +3459,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             imageUrl,
                             alt: photoBox.asset.originalFileName,
                             descPosition,
-                            description:
-                              customCaption ??
-                              (hasDescription
-                                ? photoBox.asset.exifInfo?.description
-                                : undefined),
+                            description: hasDescription
+                              ? photoBox.asset.exifInfo?.description
+                              : undefined,
                             dateText:
                               showDates && photoBox.asset.fileCreatedAt
                                 ? new Date(
@@ -3139,49 +3473,65 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                   })
                                 : undefined,
                             styles: webStyles,
-                            onLabelClick: customCaption
-                              ? (e) => {
-                                  e.stopPropagation();
-                                  setEditingCaptionAssetId(photoBox.asset.id);
-                                }
-                              : (e) =>
-                                  handleDescriptionClick(photoBox.asset.id, e),
+                            onLabelClick: (e) =>
+                              handleDescriptionClick(photoBox.asset.id, e),
                             cropPosition: cropPositions.get(photoBox.asset.id),
                           }}
                         />
 
-                        {/* Inline-Editor für die eigene Bildunterschrift */}
-                        {isEditingCaption && (
-                          <textarea
-                            autoFocus
-                            value={customCaption ?? ""}
-                            onChange={(ev) =>
-                              setImageCaptionText(
-                                photoBox.asset.id,
-                                ev.target.value,
+                        {/* Eigene, gestylte Bildunterschrift (unten am Bild) */}
+                        {(customCaption || isEditingCaption) && (
+                          <>
+                            {isEditingCaption ? (
+                              <textarea
+                                autoFocus
+                                value={customCaption?.text ?? ""}
+                                onChange={(ev) =>
+                                  setImageCaptionText(
+                                    photoBox.asset.id,
+                                    ev.target.value,
+                                  )
+                                }
+                                onKeyDown={(ev) => {
+                                  if (ev.key === "Escape") finishTextEditing();
+                                }}
+                                onClick={(ev) => ev.stopPropagation()}
+                                placeholder="Bildunterschrift…"
+                                className="absolute inset-x-0 bottom-0 z-30 resize-none border-0 px-1 text-center outline-none ring-1 ring-primary-400"
+                                style={{
+                                  fontSize: `${customCaption?.fontSize ?? fontSize}px`,
+                                  height: `${Math.max((customCaption?.fontSize ?? fontSize) * 2.5, 24)}px`,
+                                  fontFamily:
+                                    customCaption?.fontFamily ?? "Roboto",
+                                  color: customCaption?.color ?? "#292524",
+                                  backgroundColor:
+                                    customCaption?.backgroundColor ??
+                                    "rgba(255,255,255,0.85)",
+                                }}
+                              />
+                            ) : (
+                              customCaption && (
+                                <div
+                                  className="absolute inset-x-0 bottom-0 z-20 cursor-text whitespace-pre-wrap break-words px-1 text-center"
+                                  style={{
+                                    fontSize: `${customCaption.fontSize ?? fontSize}px`,
+                                    fontFamily:
+                                      customCaption.fontFamily ?? "Roboto",
+                                    color: customCaption.color ?? "#292524",
+                                    backgroundColor:
+                                      customCaption.backgroundColor ??
+                                      "rgba(255,255,255,0.7)",
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingCaptionAssetId(photoBox.asset.id);
+                                  }}
+                                >
+                                  {customCaption.text}
+                                </div>
                               )
-                            }
-                            onBlur={(ev) => {
-                              setEditingCaptionAssetId(null);
-                              // leeren Eintrag (nur Button geklickt) wieder entfernen
-                              setImageCaptionText(
-                                photoBox.asset.id,
-                                ev.target.value,
-                              );
-                            }}
-                            onKeyDown={(ev) => {
-                              if (ev.key === "Escape")
-                                (ev.target as HTMLTextAreaElement).blur();
-                            }}
-                            onClick={(ev) => ev.stopPropagation()}
-                            placeholder="Bildunterschrift…"
-                            className="absolute inset-x-0 bottom-0 z-30 resize-none border-0 bg-white/85 px-1 text-center text-stone-800 outline-none"
-                            style={{
-                              fontSize: `${fontSize}px`,
-                              height: `${Math.max(fontSize * 2.5, 24)}px`,
-                              fontFamily: "Roboto",
-                            }}
-                          />
+                            )}
+                          </>
                         )}
 
                         {/* Crop-Modus: transparentes Drag-Overlay + persistente Steuerung */}
@@ -3357,7 +3707,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                 // erscheint, und direkt in den Bearbeitungsmodus.
                                 if (!imageCaptionTexts.has(photoBox.asset.id)) {
                                   setImageCaptionTexts((prev) =>
-                                    new Map(prev).set(photoBox.asset.id, ""),
+                                    new Map(prev).set(photoBox.asset.id, {
+                                      text: "",
+                                    }),
                                   );
                                 }
                                 setEditingCaptionAssetId(photoBox.asset.id);

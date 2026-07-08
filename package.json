@@ -24,7 +24,9 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@fontsource/lora": "^5.2.8",
     "@fontsource/roboto": "^5.2.8",
+    "@fontsource/roboto-mono": "^5.2.9",
     "@immich/justified-layout-wasm": "^0.4.3",
     "@immich/sdk": "^2.2.3",
     "@mdi/js": "^7.4.47",
