@@ -22,6 +22,7 @@ import type {
   TitlePageConfig,
   ExtraPage,
   CropPosition,
+  StyledText,
 } from "./albumConfig";
 
 const SCHEMA_VERSION = 2 as const;
@@ -109,6 +110,9 @@ function sanitizeTitlePage(raw: unknown): TitlePageConfig | null {
     imageSrc: typeof raw.imageSrc === "string" ? raw.imageSrc : undefined,
     title: typeof raw.title === "string" ? raw.title : "",
     subtitle: typeof raw.subtitle === "string" ? raw.subtitle : "",
+    ...(raw.orientation === "portrait" || raw.orientation === "landscape"
+      ? { orientation: raw.orientation }
+      : {}),
   };
 }
 
@@ -149,12 +153,26 @@ function sanitizeCropPositions(raw: unknown): Record<string, CropPosition> {
   return out;
 }
 
-/** Record<string, string> defensiv säubern (Leerraum-Texte / Bildunterschriften). */
-function sanitizeStringRecord(raw: unknown): Record<string, string> {
-  const out: Record<string, string> = {};
+/**
+ * Leerraum-Texte / Bildunterschriften säubern. Akzeptiert sowohl das alte
+ * Format (reiner String) als auch das neue StyledText-Objekt.
+ */
+function sanitizeStyledTextRecord(raw: unknown): Record<string, StyledText> {
+  const out: Record<string, StyledText> = {};
   if (!isPlainObject(raw)) return out;
   for (const [key, val] of Object.entries(raw)) {
-    if (typeof val === "string") out[key] = val;
+    if (typeof val === "string") {
+      out[key] = { text: val };
+    } else if (isPlainObject(val) && typeof val.text === "string") {
+      const st: StyledText = { text: val.text };
+      if (typeof val.fontSize === "number" && Number.isFinite(val.fontSize))
+        st.fontSize = Math.min(200, Math.max(4, val.fontSize));
+      if (typeof val.color === "string") st.color = val.color;
+      if (typeof val.fontFamily === "string") st.fontFamily = val.fontFamily;
+      if (typeof val.backgroundColor === "string")
+        st.backgroundColor = val.backgroundColor;
+      out[key] = st;
+    }
   }
   return out;
 }
@@ -233,8 +251,8 @@ export function migrateRawAlbumConfig(
       customOrdering,
       pageAlignments,
       cropPositions: sanitizeCropPositions(raw.cropPositions),
-      blockerTexts: sanitizeStringRecord(raw.blockerTexts),
-      imageCaptionTexts: sanitizeStringRecord(raw.imageCaptionTexts),
+      blockerTexts: sanitizeStyledTextRecord(raw.blockerTexts),
+      imageCaptionTexts: sanitizeStyledTextRecord(raw.imageCaptionTexts),
       overlayElements: sanitizeOverlayElements(raw.overlayElements),
       imageCaptions: sanitizeImageCaptions(raw.imageCaptions),
       excludedAssetIds,

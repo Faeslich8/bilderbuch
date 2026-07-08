@@ -39,6 +39,8 @@ export interface TitlePageConfig {
   imageSrc?: string;
   title: string;
   subtitle: string;
+  /** Eigene Orientierung des Titelblatts; fehlt = folgt dem Buchformat. */
+  orientation?: "portrait" | "landscape";
 }
 
 /** Zusätzliche, frei befüllbare Leerseite (Elemente via overlayElements[id]). */
@@ -46,6 +48,20 @@ export interface ExtraPage {
   id: string;
   /** Nach welcher Auto-Seiten-Nummer einsortiert; 0 = ganz vorne. */
   afterPage: number;
+}
+
+/**
+ * Freitext mit optionalem Stil — für Leerraum-Texte und eigene
+ * Bildunterschriften. Fehlende Stilfelder = Standardwerte im Renderer.
+ */
+export interface StyledText {
+  text: string;
+  /** Schriftgröße (Punkt bzw. px in der Vorschau; beide Achsen skalieren 72/300). */
+  fontSize?: number;
+  color?: string;
+  fontFamily?: string;
+  /** Hintergrund des Textfelds; fehlt = transparent bzw. Standard. */
+  backgroundColor?: string;
 }
 
 /**
@@ -108,9 +124,9 @@ export interface AlbumConfig extends GlobalConfig {
   /** Bildausschnitt je assetId (object-position in Prozent). */
   cropPositions: Record<string, CropPosition>;
   /** Freitext in einem Leerraum (Blocker) je Blocker-Id. */
-  blockerTexts: Record<string, string>;
+  blockerTexts: Record<string, StyledText>;
   /** Eigene Bildunterschrift je assetId (überschreibt die Immich-Beschreibung). */
-  imageCaptionTexts: Record<string, string>;
+  imageCaptionTexts: Record<string, StyledText>;
 }
 
 /** Album-Konfiguration im neuen Format (V2). */
@@ -134,9 +150,9 @@ export interface AlbumConfigV2 extends GlobalConfig {
   /** Bildausschnitt je assetId (object-position in Prozent). */
   cropPositions: Record<string, CropPosition>;
   /** Freitext in einem Leerraum (Blocker) je Blocker-Id. */
-  blockerTexts: Record<string, string>;
+  blockerTexts: Record<string, StyledText>;
   /** Eigene Bildunterschrift je assetId (überschreibt die Immich-Beschreibung). */
-  imageCaptionTexts: Record<string, string>;
+  imageCaptionTexts: Record<string, StyledText>;
 }
 
 /**
