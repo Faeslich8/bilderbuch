@@ -730,10 +730,13 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   };
 
   // Beim Verlassen des Edit-Modus leere Einträge (nur Button, kein Text) entfernen.
+  // Ausnahme beim Leerraum: ein gesetzter Hintergrund (z. B. "transparent")
+  // bleibt erhalten, auch wenn kein Text drinsteht.
   const finishTextEditing = () => {
     if (editingBlockerId) {
-      const t = blockerTexts.get(editingBlockerId)?.text ?? "";
-      if (t.trim().length === 0)
+      const entry = blockerTexts.get(editingBlockerId);
+      const t = entry?.text ?? "";
+      if (t.trim().length === 0 && !entry?.backgroundColor)
         setBlockerTexts((prev) => {
           const n = new Map(prev);
           n.delete(editingBlockerId);
@@ -2565,7 +2568,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                               alignItems: "center",
                               justifyContent: "center",
                               padding: 8,
-                              ...(bText?.backgroundColor
+                              ...(bText?.backgroundColor &&
+                              bText.backgroundColor !== "transparent"
                                 ? { backgroundColor: bText.backgroundColor }
                                 : {}),
                             }}
@@ -2829,12 +2833,16 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   </label>
                   <button
                     onClick={() =>
-                      patchActiveStyle({ backgroundColor: undefined })
+                      patchActiveStyle({ backgroundColor: "transparent" })
                     }
-                    className="rounded border border-stone-300 px-1.5 py-0.5 text-xs hover:bg-stone-50"
-                    title="Hintergrund entfernen (transparent)"
+                    className={`rounded border px-1.5 py-0.5 text-xs hover:bg-stone-50 ${
+                      st?.backgroundColor === "transparent"
+                        ? "border-primary-500 bg-primary-50 text-primary-700"
+                        : "border-stone-300"
+                    }`}
+                    title="Hintergrund transparent (Seite scheint durch)"
                   >
-                    Hg ✕
+                    Transparent
                   </button>
                   <button
                     onClick={() => finishTextEditing()}
