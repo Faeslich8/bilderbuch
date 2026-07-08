@@ -37,9 +37,11 @@ import {
   type CropPosition,
   type StyledText,
   type DrawStroke,
+  type MapConfig,
 } from "../utils/albumConfig";
 import { toPoints, screenToLayoutPx } from "../utils/units";
 import { randomId } from "../utils/id";
+import MapBlockerView, { type GeoPoint } from "./MapBlockerView";
 import {
   PdfElement,
   PdfEmojiElement,
@@ -104,6 +106,7 @@ import {
   mdiCropRotate,
   mdiImageEditOutline,
   mdiClose,
+  mdiMapMarkerOutline,
 } from "@mdi/js";
 
 // Register fonts for PDF using local bundled files
@@ -418,6 +421,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const [blockerDrawings, setBlockerDrawings] = useState<
     Map<string, DrawStroke[]>
   >(() => new Map(Object.entries(initialConfig.blockerDrawings)));
+  // Karten-Leerräume (Blocker mit Karte) je Blocker-Id.
+  const [blockerMaps, setBlockerMaps] = useState<Map<string, MapConfig>>(
+    () => new Map(Object.entries(initialConfig.blockerMaps)),
+  );
   // Welcher Leerraum gerade im Zeichenmodus ist.
   const [drawingBlockerId, setDrawingBlockerId] = useState<string | null>(null);
   // Aktueller Stift (Farbe/Breite) und der gerade gezogene Strich.
@@ -577,6 +584,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       blockerTexts: Object.fromEntries(blockerTexts),
       imageCaptionTexts: Object.fromEntries(imageCaptionTexts),
       blockerDrawings: Object.fromEntries(blockerDrawings),
+      blockerMaps: Object.fromEntries(blockerMaps),
     };
     saveAlbumConfig(album.id, {
       ...config,
@@ -609,6 +617,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     blockerTexts,
     imageCaptionTexts,
     blockerDrawings,
+    blockerMaps,
     titlePage,
     extraPages,
     isPageWidthValid,
@@ -1001,8 +1010,50 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       next.delete(id);
       return next;
     });
+    setBlockerMaps((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
     if (editingBlockerId === id) setEditingBlockerId(null);
     if (drawingBlockerId === id) setDrawingBlockerId(null);
+  };
+
+  // Karten-Leerraum einfügen: ein Blocker, der zusätzlich als Karte markiert ist
+  // (fließt/skaliert/löscht wie ein normaler Leerraum).
+  const handleAddMap = (afterAssetId?: string) => {
+    const id = randomId(BLOCKER_PREFIX);
+    setCustomAspectRatios((prev) => new Map(prev).set(id, 1));
+    setCustomOrdering((prev) => {
+      const base = prev ?? defaultFilteredAssets.map((a) => a.id);
+      const anchorIndex = afterAssetId ? base.indexOf(afterAssetId) : -1;
+      if (anchorIndex === -1) return [...base, id];
+      return [
+        ...base.slice(0, anchorIndex + 1),
+        id,
+        ...base.slice(anchorIndex + 1),
+      ];
+    });
+    setBlockerMaps((prev) => new Map(prev).set(id, {}));
+  };
+  // Kartenausschnitt/Schnappschuss eines Karten-Leerraums speichern.
+  const setBlockerMap = (id: string, cfg: MapConfig) =>
+    setBlockerMaps((prev) => new Map(prev).set(id, cfg));
+
+  // GPS-Punkte der (echten) Fotos einer Seite für die Karte.
+  const geoPointsForPhotos = (
+    photos: { asset: AssetResponseDto }[],
+  ): GeoPoint[] => {
+    const pts: GeoPoint[] = [];
+    for (const pb of photos) {
+      if (isBlocker(pb.asset.id)) continue;
+      const lat = pb.asset.exifInfo?.latitude;
+      const lng = pb.asset.exifInfo?.longitude;
+      if (typeof lat === "number" && typeof lng === "number")
+        pts.push({ lat, lng });
+    }
+    return pts;
   };
 
   // Phase 4: place an album image as a free element (centered on page 1, then movable).
@@ -1920,6 +1971,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           >
                             <Icon path={mdiVectorRectangle} size={0.8} /> Leerraum
                           </button>
+                          <button
+                            onClick={() => {
+                              handleAddMap();
+                              setInsertMenuOpen(false);
+                            }}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-stone-700 hover:bg-stone-100"
+                          >
+                            <Icon path={mdiMapMarkerOutline} size={0.8} /> Karte
+                          </button>
                           {!titlePage && (
                             <button
                               onClick={() => {
@@ -2638,6 +2698,25 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     {pageData.photos.map((photoBox) => {
                       // Blocker: leerer Platz; mit optionalem Freitext (Leerraum).
                       if (isBlocker(photoBox.asset.id)) {
+                        // Karten-Leerraum: gespeicherten Schnappschuss einbetten.
+                        const mapCfg = blockerMaps.get(photoBox.asset.id);
+                        if (mapCfg) {
+                          if (!mapCfg.snapshot) return null;
+                          return (
+                            <PdfImage
+                              key={photoBox.asset.id}
+                              src={mapCfg.snapshot}
+                              style={{
+                                position: "absolute",
+                                left: toPoints(photoBox.x),
+                                top: toPoints(photoBox.y),
+                                width: toPoints(photoBox.width),
+                                height: toPoints(photoBox.height),
+                                objectFit: "cover",
+                              }}
+                            />
+                          );
+                        }
                         const bText = blockerTexts.get(photoBox.asset.id);
                         const bStrokes =
                           blockerDrawings.get(photoBox.asset.id) ?? [];
@@ -3734,6 +3813,81 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
                     // Blocker: empty design space (reorder + edge-resize like a photo).
                     if (isBlocker(photoBox.asset.id)) {
+                      // Karten-Leerraum: zeigt die GPS-Punkte der Seite.
+                      const mapCfg = blockerMaps.get(photoBox.asset.id);
+                      if (mapCfg) {
+                        const geoPts = geoPointsForPhotos(page.photos);
+                        return (
+                          <div
+                            key={photoBox.asset.id}
+                            className="group absolute"
+                            style={{
+                              left: `${toPoints(photoBox.x)}px`,
+                              top: `${toPoints(photoBox.y)}px`,
+                              width: `${containerWidth}px`,
+                              height: `${toPoints(photoBox.height)}px`,
+                            }}
+                            onDragOver={(e) =>
+                              handleReorderDragOver(globalIndex, e)
+                            }
+                            onDrop={(e) => handleReorderDrop(globalIndex, e)}
+                          >
+                            <div className="relative h-full w-full overflow-hidden rounded border border-stone-300 bg-stone-100">
+                              {geoPts.length > 0 ? (
+                                <MapBlockerView
+                                  points={geoPts}
+                                  config={mapCfg}
+                                  onSave={(cfg) =>
+                                    setBlockerMap(photoBox.asset.id, cfg)
+                                  }
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center p-3 text-center text-xs text-stone-400">
+                                  Karte · keine Geodaten auf dieser Seite
+                                </div>
+                              )}
+                              <button
+                                className="absolute top-1 right-1 z-20 rounded bg-red-500/90 px-2 py-0.5 text-[10px] text-white opacity-0 shadow transition-opacity hover:bg-red-600 group-hover:opacity-100"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDeleteBlocker(photoBox.asset.id);
+                                }}
+                                title="Karte entfernen"
+                              >
+                                Entfernen
+                              </button>
+                            </div>
+                            {/* Kantengriffe zum Skalieren (über der Karte) */}
+                            <div
+                              className="absolute left-0 top-0 bottom-0 z-30 w-2 cursor-ew-resize bg-transparent transition-colors group-hover:bg-primary-400/50"
+                              onMouseDown={(e) =>
+                                handleAspectDragStart(
+                                  photoBox.asset.id,
+                                  "left",
+                                  aspectRatio,
+                                  photoBox.x,
+                                  photoBox.width,
+                                  e,
+                                )
+                              }
+                            />
+                            <div
+                              className="absolute right-0 top-0 bottom-0 z-30 w-2 cursor-ew-resize bg-transparent transition-colors group-hover:bg-primary-400/50"
+                              onMouseDown={(e) =>
+                                handleAspectDragStart(
+                                  photoBox.asset.id,
+                                  "right",
+                                  aspectRatio,
+                                  photoBox.x,
+                                  photoBox.width,
+                                  e,
+                                )
+                              }
+                            />
+                          </div>
+                        );
+                      }
                       const isEditingBlocker =
                         editingBlockerId === photoBox.asset.id;
                       const blockerEntry = blockerTexts.get(photoBox.asset.id);

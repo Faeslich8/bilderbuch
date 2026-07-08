@@ -77,6 +77,20 @@ export interface DrawStroke {
 }
 
 /**
+ * Karten-Leerraum: ein Blocker, der eine Karte mit den GPS-Punkten der Fotos
+ * auf derselben Seite zeigt. Das Vorhandensein eines Eintrags markiert einen
+ * Blocker als Karte.
+ * - zoom/centerLng/centerLat: zuletzt eingestellter Kartenausschnitt.
+ * - snapshot: PNG-Data-URL des Ausschnitts für den PDF-Export.
+ */
+export interface MapConfig {
+  zoom?: number;
+  centerLng?: number;
+  centerLat?: number;
+  snapshot?: string;
+}
+
+/**
  * Bildausschnitt eines Fotos.
  * - x/y: object-position in Prozent (50/50 = Mitte, Default).
  * - scale: Zoomfaktor (>= 1). >1 zoomt in das Bild hinein, sodass sich per x/y
@@ -141,6 +155,8 @@ export interface AlbumConfig extends GlobalConfig {
   imageCaptionTexts: Record<string, StyledText>;
   /** Freihand-Zeichnungen je Leerraum-Id. */
   blockerDrawings: Record<string, DrawStroke[]>;
+  /** Karten-Leerräume je Blocker-Id (Anzeige der Foto-GPS-Punkte). */
+  blockerMaps: Record<string, MapConfig>;
 }
 
 /** Album-Konfiguration im neuen Format (V2). */
@@ -169,6 +185,8 @@ export interface AlbumConfigV2 extends GlobalConfig {
   imageCaptionTexts: Record<string, StyledText>;
   /** Freihand-Zeichnungen je Leerraum-Id. */
   blockerDrawings: Record<string, DrawStroke[]>;
+  /** Karten-Leerräume je Blocker-Id (Anzeige der Foto-GPS-Punkte). */
+  blockerMaps: Record<string, MapConfig>;
 }
 
 /**
@@ -356,6 +374,7 @@ export function saveAlbumConfig(
       blockerTexts: config.blockerTexts ?? {},
       imageCaptionTexts: config.imageCaptionTexts ?? {},
       blockerDrawings: config.blockerDrawings ?? {},
+      blockerMaps: config.blockerMaps ?? {},
       overlayElements: config.overlayElements ?? {},
       imageCaptions,
       excludedAssetIds: config.excludedAssetIds ?? [],

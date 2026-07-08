@@ -24,6 +24,7 @@ import type {
   CropPosition,
   StyledText,
   DrawStroke,
+  MapConfig,
 } from "./albumConfig";
 
 const SCHEMA_VERSION = 2 as const;
@@ -209,6 +210,26 @@ function sanitizeBlockerDrawings(
   return out;
 }
 
+/** Karten-Leerräume je Blocker defensiv säubern. */
+function sanitizeBlockerMaps(raw: unknown): Record<string, MapConfig> {
+  const out: Record<string, MapConfig> = {};
+  if (!isPlainObject(raw)) return out;
+  for (const [key, m] of Object.entries(raw)) {
+    if (!isPlainObject(m)) continue;
+    const cfg: MapConfig = {};
+    if (typeof m.zoom === "number" && Number.isFinite(m.zoom))
+      cfg.zoom = Math.min(22, Math.max(0, m.zoom));
+    if (typeof m.centerLng === "number" && Number.isFinite(m.centerLng))
+      cfg.centerLng = m.centerLng;
+    if (typeof m.centerLat === "number" && Number.isFinite(m.centerLat))
+      cfg.centerLat = m.centerLat;
+    if (typeof m.snapshot === "string" && m.snapshot.startsWith("data:"))
+      cfg.snapshot = m.snapshot;
+    out[key] = cfg;
+  }
+  return out;
+}
+
 function pickGlobal(
   raw: Record<string, unknown>,
   fallback: GlobalConfig,
@@ -252,6 +273,7 @@ export function migrateRawAlbumConfig(
       blockerTexts: {},
       imageCaptionTexts: {},
       blockerDrawings: {},
+      blockerMaps: {},
       overlayElements: {},
       imageCaptions: {},
       excludedAssetIds: [],
@@ -287,6 +309,7 @@ export function migrateRawAlbumConfig(
       blockerTexts: sanitizeStyledTextRecord(raw.blockerTexts),
       imageCaptionTexts: sanitizeStyledTextRecord(raw.imageCaptionTexts),
       blockerDrawings: sanitizeBlockerDrawings(raw.blockerDrawings),
+      blockerMaps: sanitizeBlockerMaps(raw.blockerMaps),
       overlayElements: sanitizeOverlayElements(raw.overlayElements),
       imageCaptions: sanitizeImageCaptions(raw.imageCaptions),
       excludedAssetIds,
@@ -306,6 +329,7 @@ export function migrateRawAlbumConfig(
     blockerTexts: {},
     imageCaptionTexts: {},
     blockerDrawings: {},
+    blockerMaps: {},
     overlayElements: {},
     imageCaptions: captionsFromDescriptionPositions(raw.descriptionPositions),
     excludedAssetIds,
