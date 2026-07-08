@@ -1673,6 +1673,32 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 Zurück zum Editor
               </button>
             )}
+            {/* Ansicht: Einzel- vs. Doppelseiten (steuert combinePages) */}
+            <div
+              className="inline-flex items-center rounded-lg border border-stone-300 bg-white p-0.5 shadow-sm"
+              title="Ansicht: einzelne Seiten oder aufgeschlagene Doppelseiten (wirkt auch auf den PDF-Export)"
+            >
+              <button
+                onClick={() => setCombinePages(false)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  !combinePages
+                    ? "bg-primary-600 text-white"
+                    : "text-stone-700 hover:bg-stone-50"
+                }`}
+              >
+                Einzelseiten
+              </button>
+              <button
+                onClick={() => setCombinePages(true)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  combinePages
+                    ? "bg-primary-600 text-white"
+                    : "text-stone-700 hover:bg-stone-50"
+                }`}
+              >
+                Doppelseiten
+              </button>
+            </div>
             {mode === "preview" && (
               <button
                 onClick={() => handleAddBlocker()}
