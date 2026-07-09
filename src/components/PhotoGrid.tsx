@@ -107,6 +107,7 @@ import {
   mdiImageEditOutline,
   mdiClose,
   mdiMapMarkerOutline,
+  mdiCursorMove,
 } from "@mdi/js";
 
 // Register fonts for PDF using local bundled files
@@ -3826,7 +3827,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         return (
                           <div
                             key={photoBox.asset.id}
-                            className="group absolute"
+                            className={`group absolute ${isBeingDragged ? "opacity-50" : ""}`}
                             style={{
                               left: `${toPoints(photoBox.x)}px`,
                               top: `${toPoints(photoBox.y)}px`,
@@ -3836,8 +3837,12 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             onDragOver={(e) =>
                               handleReorderDragOver(globalIndex, e)
                             }
+                            onDragEnd={handleReorderDragEnd}
                             onDrop={(e) => handleReorderDrop(globalIndex, e)}
                           >
+                            {isDropTarget && reorderDragState && (
+                              <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-lg z-40" />
+                            )}
                             <div className="relative h-full w-full overflow-hidden rounded border border-stone-300 bg-stone-100">
                               {geoPts.length > 0 ? (
                                 <MapBlockerView
@@ -3852,6 +3857,25 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                   Karte · keine Geodaten auf dieser Seite
                                 </div>
                               )}
+                              {/* Verschieben-Griff: eigener Handle, da die Karte
+                                  selbst Maus-Events fürs Pannen/Zoomen abfängt. */}
+                              <button
+                                draggable
+                                onDragStart={(e) =>
+                                  handleReorderDragStart(
+                                    photoBox.asset.id,
+                                    globalIndex,
+                                    e,
+                                  )
+                                }
+                                onDragEnd={handleReorderDragEnd}
+                                className="absolute top-1 left-1 z-20 flex cursor-move items-center gap-0.5 rounded bg-stone-800/80 px-1.5 py-0.5 text-[10px] text-white opacity-0 shadow transition-opacity hover:bg-stone-900 group-hover:opacity-100"
+                                title="Karte verschieben (ziehen zum Umsortieren)"
+                                aria-label="Karte verschieben"
+                              >
+                                <Icon path={mdiCursorMove} size={0.5} />
+                                Verschieben
+                              </button>
                               <button
                                 className="absolute top-1 right-1 z-20 rounded bg-red-500/90 px-2 py-0.5 text-[10px] text-white opacity-0 shadow transition-opacity hover:bg-red-600 group-hover:opacity-100"
                                 onClick={(e) => {
@@ -4434,6 +4458,18 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                               aria-label="Leerraum einfügen"
                             >
                               <Icon path={mdiVectorRectangle} size={0.7} />
+                            </button>
+                            <button
+                              className="rounded p-1 text-white transition-colors hover:bg-white/20"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleAddMap(photoBox.asset.id);
+                              }}
+                              title="Karte nach diesem Foto einfügen"
+                              aria-label="Karte einfügen"
+                            >
+                              <Icon path={mdiMapMarkerOutline} size={0.7} />
                             </button>
                             <span className="mx-0.5 h-4 w-px bg-white/25" />
                             <button
