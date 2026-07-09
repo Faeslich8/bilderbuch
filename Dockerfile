@@ -14,4 +14,8 @@ RUN npm run build
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+# Erzeugt beim Start /config.js aus IMMICH_API_KEY, damit jedes Gerät den
+# zentral hinterlegten Schlüssel ohne Eingabe nutzt (siehe Skript).
+COPY docker/immichbook-config.sh /docker-entrypoint.d/40-immichbook-config.sh
+RUN chmod +x /docker-entrypoint.d/40-immichbook-config.sh
 EXPOSE 80

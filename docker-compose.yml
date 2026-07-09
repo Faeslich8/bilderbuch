@@ -8,4 +8,10 @@ services:
       # URL des Immich-Servers, wie ihn NGINX (im Container) erreicht -
       # z. B. Container-Name + interner Port, wenn beide im selben Docker-Netzwerk laufen.
       IMMICH_URL: "http://immich-server:2283"
+      # Zentral hinterlegter Immich-API-Schlüssel: wird beim Start in /config.js
+      # ausgeliefert, sodass sich jedes Gerät im Netzwerk ohne Eingabe verbindet.
+      # Leer lassen, um stattdessen pro Gerät nach dem Schlüssel zu fragen.
+      # Empfehlung: dedizierten (statt Admin-)Schlüssel verwenden, da jeder im
+      # LAN, der die Seite lädt, damit auf Immich zugreift.
+      IMMICH_API_KEY: "${IMMICH_API_KEY:-}"
     restart: unless-stopped

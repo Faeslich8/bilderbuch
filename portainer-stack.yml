@@ -4,9 +4,12 @@
 #
 # Der Container liefert die App aus und proxyt /api/ same-origin zu Immich
 # (IMMICH_URL unten anpassen). Der Browser spricht dadurch nur mit dieser einen
-# Origin, kein CORS auf Immich nötig. Die Verbindung stellst du in der
-# Oberfläche her (als Server-URL diese App-Origin eingeben, z. B.
-# http://your-host:8080), API-Key dazu.
+# Origin, kein CORS auf Immich nötig.
+#
+# Trage unten IMMICH_API_KEY ein: Der Schlüssel wird beim Start in /config.js
+# ausgeliefert, sodass sich JEDES Gerät im Netzwerk ohne Eingabe von Server-URL
+# und API-Key automatisch verbindet. Lässt du ihn leer, fragt die App pro Gerät
+# nur nach dem API-Schlüssel (die Server-URL entfällt in beiden Fällen).
 #
 # Image entweder auf "public" stellen ODER in Portainer eine ghcr.io-Registry-
 # Anmeldung hinterlegen (Username = GitHub-Name, Passwort = PAT mit read:packages).
@@ -19,6 +22,10 @@ services:
       # URL des Immich-Servers, wie ihn NGINX (im Container) erreicht -
       # z. B. Container-Name + interner Port, wenn beide im selben Docker-Netzwerk laufen.
       IMMICH_URL: "http://immich-server:2283"
+      # Zentral hinterlegter Immich-API-Schlüssel -> jedes Gerät verbindet sich
+      # automatisch ohne Eingabe. Empfehlung: dedizierten (statt Admin-)Schlüssel,
+      # da jeder im LAN, der die Seite lädt, damit auf Immich zugreift.
+      IMMICH_API_KEY: ""
     networks:
       - immich
     restart: unless-stopped

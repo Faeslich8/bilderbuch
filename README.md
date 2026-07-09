@@ -176,16 +176,26 @@ docker compose up --build -d
 ```
 
 The app is then available on <http://localhost:8080> (change the host port in
-`docker-compose.yml` if you like). Enter this app's own URL (e.g.
-`http://localhost:8080`) as the Server-URL in the UI, plus your API key.
+`docker-compose.yml` if you like). You **don't** need to enter a server URL — the app
+always talks to Immich same-origin via the `/api` proxy. Just enter your API key once
+per device.
+
+**Zero-input for the whole network:** set the `IMMICH_API_KEY` environment variable in
+`docker-compose.yml` / `portainer-stack.yml`. It is delivered to the browser at load
+time (`/config.js`), so **every device on the network connects automatically without
+entering anything**. Leave it empty to have each device prompt for its own key instead.
+
+> **Security note:** the injected key is served in plaintext to anyone who can load the
+> page. Prefer a **dedicated** Immich API key (not your admin key) scoped to what the
+> book needs, since anyone on your LAN who opens the app gains that access.
 
 **Pre-built image (Portainer web editor):** pushes to `main` build and publish the
 image to `ghcr.io/<owner>/immich-book:latest` via `.github/workflows/docker-image.yml`.
 You can then deploy without any build context — paste `portainer-stack.yml` into
 Portainer's stack editor (or any compose that uses
-`image: ghcr.io/<owner>/immich-book:latest`), adjusting `IMMICH_URL` and the network
-name to match your setup. Make the package public, or add ghcr.io registry
-credentials in Portainer, so it can be pulled.
+`image: ghcr.io/<owner>/immich-book:latest`), adjusting `IMMICH_URL`, `IMMICH_API_KEY`
+and the network name to match your setup. Make the package public, or add ghcr.io
+registry credentials in Portainer, so it can be pulled.
 
 > If you'd rather connect directly from the browser to Immich instead of using the
 > same-origin proxy (e.g. Immich runs on a different host), remove the `IMMICH_URL`
@@ -196,10 +206,9 @@ credentials in Portainer, so it can be pulled.
 ### Using Immich Book
 
 1. **Connect to Immich**
-   - Visit [hosted](#using-the-hosted-version) or your own [self-hosted](#self-hosting-recommended) (recommended) instance of `immich-book`
-   - Enter your Immich server URL (e.g., `https://immich.example.com`)
-   - Enter your API key
-   - Click "Connect"
+   - Visit your [self-hosted](#self-hosting-recommended) (recommended) instance of `immich-book`
+   - If a central `IMMICH_API_KEY` is configured, you're connected automatically — nothing to enter
+   - Otherwise just enter your API key and click "Connect" (no server URL needed — it's same-origin)
 
 2. **Select an Album**
    - Browse your albums

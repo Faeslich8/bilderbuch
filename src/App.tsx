@@ -24,19 +24,24 @@ function App() {
     }
   }, []);
 
-  // Load config from localStorage on mount
+  // Auto-Connect beim Start: Der API-Schlüssel kann zentral vom Server geliefert
+  // werden (window.__IMMICHBOOK_CONFIG__.apiKey aus /config.js) — dann muss KEIN
+  // Gerät etwas eingeben. Sonst greift ein pro Gerät gespeicherter Schlüssel.
+  // Die Server-Adresse ist immer same-origin ("/api", per nginx-Proxy).
   useEffect(() => {
-    const savedConfig = localStorage.getItem("immich-config");
-    if (savedConfig) {
-      try {
-        const config = JSON.parse(savedConfig);
-        // Re-initialize the SDK with saved config
-        init({ baseUrl: config.baseUrl, apiKey: config.apiKey });
-        setImmichConfig(config);
-      } catch (err) {
-        console.error("Failed to load saved config:", err);
-        localStorage.removeItem("immich-config");
-      }
+    const injectedKey = window.__IMMICHBOOK_CONFIG__?.apiKey?.trim();
+    let storedKey = "";
+    try {
+      const saved = localStorage.getItem("immich-config");
+      if (saved) storedKey = (JSON.parse(saved)?.apiKey || "").trim();
+    } catch {
+      localStorage.removeItem("immich-config");
+    }
+    const apiKey = injectedKey || storedKey;
+    if (apiKey) {
+      const config: ImmichConfig = { serverUrl: "", apiKey, baseUrl: "/api" };
+      init({ baseUrl: config.baseUrl, apiKey: config.apiKey });
+      setImmichConfig(config);
     }
   }, []);
 
