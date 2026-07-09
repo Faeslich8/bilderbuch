@@ -1501,11 +1501,17 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     titleOrientation === "landscape" ? titleLongPx : titleShortPx;
   const titlePageHeightPx =
     titleOrientation === "landscape" ? titleShortPx : titleLongPx;
-  const titlePageWidthPx = combinePages
-    ? titleSingleWidthPx * 2
-    : titleSingleWidthPx;
+  // Das Titelblatt ist immer nur EINE Seite breit (wie ein zusammengeklapptes
+  // Buch) – auch im Doppelseiten-Modus, wo die Inhaltsseiten paarweise erscheinen.
+  const titlePageWidthPx = titleSingleWidthPx;
   const titleDisplayW = toPoints(titlePageWidthPx);
   const titleDisplayH = toPoints(titlePageHeightPx);
+  // Leere Seiten füllen dagegen im Doppelmodus die ganze Doppelseite.
+  const blankPageWidthPx = combinePages
+    ? titleSingleWidthPx * 2
+    : titleSingleWidthPx;
+  const blankDisplayW = toPoints(blankPageWidthPx);
+  const blankDisplayH = titleDisplayH;
   const titleTextColor = pageBackground === "darkbrown" ? "#f5f0e6" : "#1c1917";
 
   // Overlay-Ebene (freie Elemente) einer Seite — für Auto- UND Leerseiten,
@@ -1722,8 +1728,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       <div
         className="relative shadow-lg mx-auto border border-stone-200"
         style={{
-          width: `${titleDisplayW}px`,
-          height: `${titleDisplayH}px`,
+          width: `${blankDisplayW}px`,
+          height: `${blankDisplayH}px`,
           ...webPageBackgroundStyle(pageBackground),
         }}
         onClick={() => setSelectedElementId(null)}
@@ -1748,7 +1754,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     <Page
       key={extra.id}
       size={{
-        width: toPoints(titlePageWidthPx),
+        width: toPoints(blankPageWidthPx),
         height: toPoints(validPageHeight),
       }}
       style={[staticStyles.page, { backgroundColor: PAGE_BG[pageBackground] }]}
