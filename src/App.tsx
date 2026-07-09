@@ -3,6 +3,7 @@ import { init, getAlbumInfo, type AlbumResponseDto } from "@immich/sdk";
 import ConnectionForm, { type ImmichConfig } from "./components/ConnectionForm";
 import AlbumSelector from "./components/AlbumSelector";
 import PhotoGrid from "./components/PhotoGrid";
+import { hydrateAlbumFromRemote } from "./utils/albumConfig";
 
 function App() {
   const [immichConfig, setImmichConfig] = useState<ImmichConfig | null>(null);
@@ -10,6 +11,10 @@ function App() {
     null,
   );
   const [isLoadingAlbum, setIsLoadingAlbum] = useState(false);
+  // Album-ID, deren zentraler Bearbeitungsstand bereits in den lokalen Cache
+  // gezogen wurde. Bis dahin zeigt der Editor einen Ladehinweis, damit er nicht
+  // kurz den alten lokalen Stand rendert und dann überschreibt.
+  const [hydratedAlbumId, setHydratedAlbumId] = useState<string | null>(null);
 
   // Check for reset parameter in URL to clear localStorage
   useEffect(() => {
@@ -93,6 +98,22 @@ function App() {
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, [immichConfig]);
+
+  // Beim Öffnen eines Albums zuerst den zentralen Stand in den lokalen Cache
+  // ziehen, damit alle Geräte denselben Bearbeitungsstand sehen. Erst danach
+  // wird der Editor (der synchron aus dem Cache lädt) freigegeben.
+  useEffect(() => {
+    if (!selectedAlbum) return;
+    const id = selectedAlbum.id;
+    let cancelled = false;
+    setHydratedAlbumId(null);
+    hydrateAlbumFromRemote(id).finally(() => {
+      if (!cancelled) setHydratedAlbumId(id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAlbum]);
 
   const handleConnect = (config: ImmichConfig) => {
     setImmichConfig(config);
@@ -178,8 +199,16 @@ function App() {
             immichConfig={immichConfig}
             onSelectAlbum={handleAlbumSelect}
           />
+        ) : hydratedAlbumId !== selectedAlbum.id ? (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-stone-900"></div>
+            <p className="mt-4 text-stone-600">
+              Bearbeitungsstand wird synchronisiert…
+            </p>
+          </div>
         ) : (
           <PhotoGrid
+            key={selectedAlbum.id}
             immichConfig={immichConfig}
             album={selectedAlbum}
             onBack={handleBackToAlbums}

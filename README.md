@@ -189,6 +189,14 @@ entering anything**. Leave it empty to have each device prompt for its own key i
 > page. Prefer a **dedicated** Immich API key (not your admin key) scoped to what the
 > book needs, since anyone on your LAN who opens the app gains that access.
 
+**Shared editing state across devices:** the container serves a small WebDAV file store
+under `/store/` backed by the `immichbook-store` volume (mounted at `/data`). The app
+saves each album's editing state (ordering, aspect ratios, blank/design spaces, maps,
+title page, …) there and loads it on open, so **every device sees the same progress**.
+`localStorage` stays as a local cache/offline fallback; if the store is unreachable the
+app just works per-device as before. Conflicts resolve last-write-wins — fine for a home
+setup. Keep the `immichbook-store` volume to preserve books across redeploys.
+
 **Pre-built image (Portainer web editor):** pushes to `main` build and publish the
 image to `ghcr.io/<owner>/immich-book:latest` via `.github/workflows/docker-image.yml`.
 You can then deploy without any build context — paste `portainer-stack.yml` into

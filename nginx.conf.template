@@ -9,6 +9,24 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # WebDAV-PUTs werden erst in eine Temp-Datei gepuffert und dann per rename()
+    # an ihren Zielpfad verschoben. Temp und Ziel müssen auf DEMSELBEN Dateisystem
+    # liegen (sonst "cross-device link"). Beide auf dem /data-Volume.
+    client_body_temp_path /data/tmp;
+
+    # Zentraler Bearbeitungs-Speicher (geräteübergreifend): schlichter Datei-Store
+    # per WebDAV auf ein persistentes Volume. GET liest, PUT schreibt, DELETE löscht.
+    # /store/<name>.json  ->  /data/store/<name>.json
+    location /store/ {
+        root /data;
+        dav_methods PUT DELETE;
+        create_full_put_path on;
+        dav_access user:rw group:rw all:r;
+        client_max_body_size 25m;
+        autoindex off;
+        limit_except GET PUT DELETE { deny all; }
+    }
+
     # SPA: clientseitige Routen auf index.html zurückfallen lassen.
     location / {
         try_files $uri $uri/ /index.html;
