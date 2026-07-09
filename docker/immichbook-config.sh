@@ -19,3 +19,9 @@ if [ -n "$IMMICH_API_KEY" ]; then
 else
   echo "immich-book: kein IMMICH_API_KEY gesetzt – Geräte fragen nach dem Schlüssel."
 fi
+
+# Zentraler Bearbeitungs-Speicher: Store- und Temp-Verzeichnis auf dem /data-Volume
+# anlegen und dem nginx-Worker-User schreibbar machen (WebDAV-PUT läuft als Worker).
+mkdir -p /data/store /data/tmp
+chown -R nginx:nginx /data/store /data/tmp
+echo "immich-book: Bearbeitungs-Speicher unter /data/store bereit."

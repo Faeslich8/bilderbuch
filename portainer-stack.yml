@@ -26,9 +26,16 @@ services:
       # automatisch ohne Eingabe. Empfehlung: dedizierten (statt Admin-)Schlüssel,
       # da jeder im LAN, der die Seite lädt, damit auf Immich zugreift.
       IMMICH_API_KEY: ""
+    volumes:
+      # Persistenter zentraler Bearbeitungs-Speicher (ein JSON pro Album),
+      # damit alle Geräte im Netzwerk denselben Bearbeitungsstand sehen.
+      - immichbook-store:/data
     networks:
       - immich
     restart: unless-stopped
+
+volumes:
+  immichbook-store:
 
 networks:
   immich:

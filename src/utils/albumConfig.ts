@@ -21,6 +21,12 @@
 
 import type { PageElement, CaptionPosition } from "../types/pageElement";
 import { migrateRawAlbumConfig } from "./migration";
+import {
+  fetchRemoteConfig,
+  scheduleRemoteSave,
+  albumStoreName,
+  GLOBAL_STORE_NAME,
+} from "./remoteStore";
 
 export const CURRENT_SCHEMA_VERSION = 2 as const;
 
@@ -290,7 +296,10 @@ export function loadGlobalConfig(): GlobalConfig {
 
 export function saveGlobalConfig(config: GlobalConfig) {
   try {
-    localStorage.setItem(GLOBAL_KEY, JSON.stringify(config));
+    const json = JSON.stringify(config);
+    localStorage.setItem(GLOBAL_KEY, json);
+    // Zusätzlich in den zentralen Store (entprellt), damit alle Geräte gleich ziehen.
+    scheduleRemoteSave(GLOBAL_STORE_NAME, json);
   } catch (e) {
     console.error("Failed to save global config:", e);
   }
@@ -305,6 +314,19 @@ export function saveGlobalConfig(config: GlobalConfig) {
  * die migrierte Form sofort zurück (gleiches Muster wie die bisherige
  * removeItem-Aufräumlogik beim Mount).
  */
+/**
+ * Zieht den zentral gespeicherten Stand (global + Album) in den lokalen Cache,
+ * BEVOR der Editor mountet – so liest der synchrone loadAlbumConfig den geteilten
+ * Stand. Fehlt ein zentraler Stand oder ist der Store offline, bleibt der lokale
+ * Cache unangetastet (fetchRemoteConfig liefert dann null).
+ */
+export async function hydrateAlbumFromRemote(albumId: string): Promise<void> {
+  const global = await fetchRemoteConfig(GLOBAL_STORE_NAME);
+  if (global) localStorage.setItem(GLOBAL_KEY, global);
+  const album = await fetchRemoteConfig(albumStoreName(albumId));
+  if (album) localStorage.setItem(albumKey(albumId), album);
+}
+
 export function loadAlbumConfig(albumId: string): LoadedAlbumConfig {
   const globalConfig = loadGlobalConfig();
   let raw: unknown = null;
@@ -382,7 +404,10 @@ export function saveAlbumConfig(
       extraPages: config.extraPages ?? [],
     };
 
-    localStorage.setItem(albumKey(albumId), JSON.stringify(v2));
+    const json = JSON.stringify(v2);
+    localStorage.setItem(albumKey(albumId), json);
+    // Zusätzlich in den zentralen Store (entprellt) -> geräteübergreifender Stand.
+    scheduleRemoteSave(albumStoreName(albumId), json);
 
     // Globale Defaults wie bisher mitschreiben.
     saveGlobalConfig({
