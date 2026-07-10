@@ -16,6 +16,17 @@ export default defineConfig(({ mode }) => {
           // Rewrite to remove /api prefix if needed
           // rewrite: (path) => path.replace(/^\/api/, '/api'),
         },
+        // Nur für lokale Tests: den zentralen Store (WebDAV) eines echten
+        // immich-book-Containers durchreichen (VITE_STORE_PROXY_TARGET).
+        ...(env.VITE_STORE_PROXY_TARGET
+          ? {
+              "/store": {
+                target: env.VITE_STORE_PROXY_TARGET,
+                changeOrigin: true,
+                secure: false,
+              },
+            }
+          : {}),
       },
     },
   };

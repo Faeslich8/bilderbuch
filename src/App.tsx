@@ -4,6 +4,11 @@ import ConnectionForm, { type ImmichConfig } from "./components/ConnectionForm";
 import AlbumSelector from "./components/AlbumSelector";
 import PhotoGrid from "./components/PhotoGrid";
 import { hydrateAlbumFromRemote } from "./utils/albumConfig";
+import {
+  isLocalAlbumId,
+  loadLocalAlbum,
+  localAlbumToResponseDto,
+} from "./utils/localAlbum";
 
 function App() {
   const [immichConfig, setImmichConfig] = useState<ImmichConfig | null>(null);
@@ -65,7 +70,13 @@ function App() {
         // Only load if different from current
         if (!selectedAlbum || selectedAlbum.id !== albumId) {
           setIsLoadingAlbum(true);
-          getAlbumInfo({ id: albumId })
+          // Lokale Alben aus dem Store-Manifest laden, Immich-Alben per SDK.
+          const loader = isLocalAlbumId(albumId)
+            ? loadLocalAlbum(albumId).then((la) =>
+                la ? localAlbumToResponseDto(la) : Promise.reject(new Error("Lokales Album nicht gefunden")),
+              )
+            : getAlbumInfo({ id: albumId });
+          loader
             .then((album) => {
               setSelectedAlbum(album);
             })
