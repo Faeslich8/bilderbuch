@@ -10,8 +10,18 @@ import {
   localAlbumToResponseDto,
 } from "./utils/localAlbum";
 
+// Platzhalter-Konfig für den Ohne-Immich-Modus: der Editor/AlbumSelector braucht
+// eine ImmichConfig-Instanz, für lokale Alben werden apiKey/baseUrl aber nie genutzt.
+const LOCAL_ONLY_CONFIG: ImmichConfig = {
+  serverUrl: "",
+  apiKey: "",
+  baseUrl: "/api",
+};
+const LOCAL_ONLY_KEY = "immich-book-local-only";
+
 function App() {
   const [immichConfig, setImmichConfig] = useState<ImmichConfig | null>(null);
+  const [localOnly, setLocalOnly] = useState(false);
   const [selectedAlbum, setSelectedAlbum] = useState<AlbumResponseDto | null>(
     null,
   );
@@ -52,6 +62,10 @@ function App() {
       const config: ImmichConfig = { serverUrl: "", apiKey, baseUrl: "/api" };
       init({ baseUrl: config.baseUrl, apiKey: config.apiKey });
       setImmichConfig(config);
+    } else if (localStorage.getItem(LOCAL_ONLY_KEY) === "1") {
+      // Zuvor „Ohne Immich" gewählt -> ohne Verbindung fortfahren.
+      setLocalOnly(true);
+      setImmichConfig(LOCAL_ONLY_CONFIG);
     }
   }, []);
 
@@ -130,10 +144,18 @@ function App() {
     setImmichConfig(config);
   };
 
+  const handleLocalOnly = () => {
+    localStorage.setItem(LOCAL_ONLY_KEY, "1");
+    setLocalOnly(true);
+    setImmichConfig(LOCAL_ONLY_CONFIG);
+  };
+
   const handleDisconnect = () => {
     setImmichConfig(null);
+    setLocalOnly(false);
     setSelectedAlbum(null);
     localStorage.removeItem("immich-config");
+    localStorage.removeItem(LOCAL_ONLY_KEY);
     // Clear hash
     window.location.hash = "";
   };
@@ -209,7 +231,10 @@ function App() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {!immichConfig ? (
-          <ConnectionForm onConnect={handleConnect} />
+          <ConnectionForm
+            onConnect={handleConnect}
+            onLocalOnly={handleLocalOnly}
+          />
         ) : isLoadingAlbum ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-stone-200 border-t-primary-600"></div>
@@ -219,6 +244,7 @@ function App() {
           <AlbumSelector
             immichConfig={immichConfig}
             onSelectAlbum={handleAlbumSelect}
+            localOnly={localOnly}
           />
         ) : hydratedAlbumId !== selectedAlbum.id ? (
           <div className="text-center py-12">

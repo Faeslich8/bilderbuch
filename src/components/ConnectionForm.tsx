@@ -9,6 +9,8 @@ export interface ImmichConfig {
 
 interface ConnectionFormProps {
   onConnect: (config: ImmichConfig) => void;
+  /** Ohne Immich fortfahren – nur lokale (selbst hochgeladene) Alben nutzen. */
+  onLocalOnly: () => void;
 }
 
 // Der Immich-Server wird immer same-origin über den nginx-Proxy ("/api")
@@ -16,7 +18,7 @@ interface ConnectionFormProps {
 // Deployment ein zentraler Schlüssel hinterlegt ist (IMMICH_API_KEY), wird
 // dieses Formular gar nicht erst angezeigt (siehe App.tsx). Es dient nur noch
 // als Fallback, um pro Gerät einen persönlichen API-Schlüssel zu hinterlegen.
-function ConnectionForm({ onConnect }: ConnectionFormProps) {
+function ConnectionForm({ onConnect, onLocalOnly }: ConnectionFormProps) {
   const [apiKey, setApiKey] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +94,23 @@ function ConnectionForm({ onConnect }: ConnectionFormProps) {
             {isConnecting ? "Verbinden…" : "Verbinden"}
           </button>
         </form>
+
+        <div className="mt-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-stone-200" />
+          <span className="text-xs text-stone-400">oder</span>
+          <div className="h-px flex-1 bg-stone-200" />
+        </div>
+
+        <button
+          type="button"
+          onClick={onLocalOnly}
+          className="mt-4 w-full rounded-lg border border-stone-300 bg-white px-4 py-2 font-medium text-stone-700 shadow-sm transition-colors hover:bg-stone-50"
+        >
+          Ohne Immich starten
+        </button>
+        <p className="mt-2 text-center text-xs text-stone-500">
+          Nur eigene, hochgeladene Alben – ganz ohne Immich-Server.
+        </p>
       </div>
     </div>
   );
