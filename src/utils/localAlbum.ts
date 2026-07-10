@@ -280,6 +280,35 @@ export async function addPhotosToLocalAlbum(
   return album;
 }
 
+/**
+ * Übernimmt ein bereits im Browser vorhandenes Bild (Data-URL) als echtes
+ * Album-Foto. Genutzt beim "Fixieren" eines frei platzierten/gedroppten Bildes.
+ */
+export async function addDataUrlToLocalAlbum(
+  album: LocalAlbum,
+  dataUrl: string,
+  fileName = "bild.jpg",
+): Promise<LocalAlbum> {
+  const blob = await (await fetch(dataUrl)).blob();
+  const dims = await new Promise<{ w: number; h: number }>((resolve) => {
+    const i = new Image();
+    i.onload = () => resolve({ w: i.width, h: i.height });
+    i.onerror = () => resolve({ w: 1, h: 1 });
+    i.src = dataUrl;
+  });
+  const mediaId = randomId("img").replace(/[^a-zA-Z0-9-]/g, "");
+  await putRemoteMedia(album.id, mediaId, blob);
+  album.photos.push({
+    id: mediaId,
+    fileName,
+    width: dims.w,
+    height: dims.h,
+    createdAt: new Date().toISOString(),
+  });
+  await saveLocalAlbum(album);
+  return album;
+}
+
 /** Entfernt ein Foto (Datei + Manifest-Eintrag). */
 export async function removePhotoFromLocalAlbum(
   album: LocalAlbum,
