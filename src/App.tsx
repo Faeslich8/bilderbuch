@@ -140,16 +140,26 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-stone-50">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="sticky top-0 z-30 border-b border-stone-200/70 bg-white/90 shadow-sm backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-stone-900">BilderBuch</h1>
-              <p className="text-sm text-stone-500">
-                Fotobücher aus deinen Immich-Alben erstellen
-              </p>
+            <div className="flex items-center gap-3">
+              <img
+                src="/icon.svg"
+                alt=""
+                aria-hidden="true"
+                className="h-10 w-10 rounded-xl shadow-sm"
+              />
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-stone-900">
+                  BilderBuch
+                </h1>
+                <p className="text-sm text-stone-500">
+                  Fotobücher aus deinen Immich-Alben erstellen
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <a
@@ -191,7 +201,7 @@ function App() {
           <ConnectionForm onConnect={handleConnect} />
         ) : isLoadingAlbum ? (
           <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-stone-900"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-stone-200 border-t-primary-600"></div>
             <p className="mt-4 text-stone-600">Album wird geladen…</p>
           </div>
         ) : !selectedAlbum ? (
@@ -201,7 +211,7 @@ function App() {
           />
         ) : hydratedAlbumId !== selectedAlbum.id ? (
           <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-stone-900"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-stone-200 border-t-primary-600"></div>
             <p className="mt-4 text-stone-600">
               Bearbeitungsstand wird synchronisiert…
             </p>

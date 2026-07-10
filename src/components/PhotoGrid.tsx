@@ -1770,7 +1770,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   if (isLoading) {
     return (
       <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-stone-900"></div>
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-stone-200 border-t-primary-600"></div>
         <p className="mt-4 text-stone-600">Fotos werden geladen…</p>
       </div>
     );

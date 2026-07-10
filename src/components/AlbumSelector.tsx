@@ -67,7 +67,7 @@ function AlbumSelector({ immichConfig, onSelectAlbum }: AlbumSelectorProps) {
   if (isLoading) {
     return (
       <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-stone-900"></div>
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-stone-200 border-t-primary-600"></div>
         <p className="mt-4 text-stone-600">Alben werden geladen…</p>
       </div>
     );
@@ -111,14 +111,14 @@ function AlbumSelector({ immichConfig, onSelectAlbum }: AlbumSelectorProps) {
           <button
             key={album.id}
             onClick={() => onSelectAlbum(album)}
-            className="flex flex-col text-left bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden"
+            className="group flex flex-col text-left bg-white rounded-xl border border-stone-200/80 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-primary-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 transition-all duration-200 overflow-hidden"
           >
             {album.albumThumbnailAssetId ? (
               <div className="h-48 bg-stone-200 relative overflow-hidden">
                 <img
                   src={`${immichConfig.baseUrl}/assets/${album.albumThumbnailAssetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`}
                   alt={album.albumName}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
                 />
               </div>
             ) : (
