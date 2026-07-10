@@ -61,6 +61,7 @@ import {
   isLocalAlbumId,
   loadLocalAlbum,
   addPhotosToLocalAlbum,
+  addDataUrlToLocalAlbum,
   localAlbumAssets,
 } from "../utils/localAlbum";
 import {
@@ -1419,7 +1420,39 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     : [];
 
   // Phase 3: re-fix a freed element (undo "Lösen") so its asset rejoins the auto layout.
-  const refixElement = (id: string) => {
+  const refixElement = async (id: string) => {
+    // Element über alle Seiten finden.
+    let target: PageElement | undefined;
+    for (const els of Object.values(overlayElements)) {
+      const found = els.find((el) => el.id === id);
+      if (found) {
+        target = found;
+        break;
+      }
+    }
+    // Ein frei platziertes/gedropptes Bild hat eine eigene src (kein echtes
+    // Grid-Asset). Es einfach zu entfernen würde es verschwinden lassen.
+    if (target && isImageElement(target) && target.src) {
+      if (isLocal) {
+        // Ins lokale Album übernehmen -> echtes Raster-Foto.
+        try {
+          const current = await loadLocalAlbum(album.id);
+          if (current) {
+            const updated = await addDataUrlToLocalAlbum(current, target.src);
+            setAssets(localAlbumAssets(updated));
+          }
+        } catch (e) {
+          console.error("Bild konnte nicht ins Album übernommen werden:", e);
+          return; // Overlay behalten, damit nichts verloren geht
+        }
+      } else {
+        // Immich-Album: es gibt kein Raster-Ziel für ein eigenes Bild ->
+        // Element als frei platziertes Bild behalten (nicht entfernen).
+        return;
+      }
+    }
+    // Gelöstes Grid-Foto (ohne eigene src) bzw. übernommenes lokales Bild:
+    // Overlay entfernen, das Foto ist (wieder) Teil des Rasters.
     setOverlayElements((prev) => {
       const next: Record<string, PageElement[]> = {};
       for (const [pageId, els] of Object.entries(prev)) {
@@ -1865,7 +1898,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
         e.preventDefault();
         setIsDraggingFile(false);
         if (e.dataTransfer.files?.length) {
-          handleInsertImageFiles(e.dataTransfer.files);
+          // Lokales Album: abgelegte Bilder werden echte Album-Fotos (Raster),
+          // damit sie dauerhaft bleiben. Immich-Album: freies Overlay-Bild.
+          if (isLocal) handleAddLocalPhotos(e.dataTransfer.files);
+          else handleInsertImageFiles(e.dataTransfer.files);
         }
       }}
     >
@@ -2561,7 +2597,12 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   multiple
                   className="hidden"
                   onChange={(e) => {
-                    if (e.target.files) handleInsertImageFiles(e.target.files);
+                    if (e.target.files) {
+                      if (isLocal) {
+                        handleAddLocalPhotos(e.target.files);
+                        setShowImagePicker(false);
+                      } else handleInsertImageFiles(e.target.files);
+                    }
                     e.target.value = "";
                   }}
                 />
@@ -3572,6 +3613,37 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   }}
                 />
               </div>
+            </div>
+          )}
+          {isLocal && pageSequence.length === 0 && (
+            <div className="mb-10 flex flex-col items-center">
+              <label
+                className="relative flex cursor-pointer flex-col items-center justify-center rounded border-2 border-dashed border-stone-300 bg-white text-center shadow-sm transition-colors hover:border-primary-400 hover:bg-primary-50/40"
+                style={{
+                  width: `${toPoints(validPageWidth)}px`,
+                  height: `${toPoints(validPageHeight)}px`,
+                }}
+                title="Fotos hinzufügen"
+              >
+                <Icon path={mdiImagePlusOutline} size={1.6} color="#d6d3d1" />
+                <span className="mt-3 text-sm font-medium text-stone-500">
+                  Leere Seite
+                </span>
+                <span className="mt-1 max-w-[70%] text-xs text-stone-400">
+                  Fotos hierher ziehen oder klicken, um Bilder hinzuzufügen
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  disabled={isUploadingLocal}
+                  onChange={(e) => {
+                    if (e.target.files) handleAddLocalPhotos(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
             </div>
           )}
           {pageSequence.map((item) => {
