@@ -1,16 +1,21 @@
-# Immich Book
+# BilderBuch
 
-> This is a fork of [ch1bo/immich-book](https://github.com/ch1bo/immich-book)
-> by Sebastian Nagel, with additional editor features. Licensed under AGPL-3.0
-> (see [LICENSE](LICENSE)); all modifications remain under the same license.
+> **BilderBuch** – Fotobücher für Immich. A fork of
+> [ch1bo/immich-book](https://github.com/ch1bo/immich-book) by Sebastian Nagel,
+> substantially extended with additional editor features (design/blank spaces,
+> drawing, an insertable map, DIN formats, single/double-page view, a title page,
+> zero-input central connection and a shared cross-device editing store).
+> Licensed under AGPL-3.0 (see [LICENSE](LICENSE)); all modifications remain under
+> the same license. "Immich" is a trademark of the Immich project; BilderBuch is an
+> independent companion tool and not affiliated with or endorsed by Immich.
 
 Create beautiful photo books from your [Immich](https://immich.app/) albums.
 
 A web application that generates print-ready photo books from your Immich albums using the official Immich SDK.
 
-## Why Immich Book?
+## Why BilderBuch?
 
-Your photos are already organized in Immich albums. Immich Book turns those curated collections into professional-quality photo books you can print or share as PDFs.
+Your photos are already organized in Immich albums. BilderBuch turns those curated collections into professional-quality photo books you can print or share as PDFs.
 
 - **Privacy-first**: Your photos stay on your server
 - **No subscriptions**: Free and open source
@@ -19,44 +24,51 @@ Your photos are already organized in Immich albums. Immich Book turns those cura
 
 ## Demo
 
-<!-- TODO: Add screenshots/video demo here -->
+<!-- TODO: Add screenshots of BilderBuch here -->
 
-Try it with demo assets on the hosted setup: [ch1bo.github.io/immich-book](https://ch1bo.github.io/immich-book)
-
-> [!TIP]
-> The demo server access needs to be renewed every couple of hours. Should you get encouner errors, try reloading the page.
+BilderBuch is meant to be self-hosted alongside your own Immich instance (see
+[Self-Hosting](#self-hosting-recommended)). The **original** project also offers a
+public demo with sample assets: [ch1bo.github.io/immich-book](https://ch1bo.github.io/immich-book)
+(note it predates the features added in this fork).
 
 ## Features
 
 ### Connection & Browsing
 
-- Connect to your Immich server with API key authentication
-- Browse and select from all your albums
-- Automatic reconnection to last used album
+- Same-origin connection via the built-in `/api` proxy — no server URL to enter
+- **Zero-input for the whole network**: optional central API key (`IMMICH_API_KEY`) so every device connects automatically
+- **Shared editing state across devices** via a small central store (see below) — no more per-device divergence
+- Browse and select from all your albums, automatic reconnection to last used album
 
 ### Layout & Customization
 
 - Justified layout using @immich/justified-layout-wasm
-- Custom page sizes (A4, Letter, A3) and custom dimensions
+- Page formats: **DIN A3–A6** plus custom dimensions, portrait/landscape
+- **Single- and double-page (open-book) view**
 - Adjustable layout parameters (margin, row height, spacing)
-- Combine pages mode for dual-page spreads
-- Per-album configuration with global fallback
+- Configurable page background; per-album configuration with global fallback
 
 ### Photo Customization
 
-- Drag borders to customize aspect ratios per photo
-- Drag & drop to reorder photos
-- Cycle description positions (bottom, top, left, right)
-- Toggle dates and descriptions on/off
-- Reset customizations individually or all at once
-- Color-coded indicators for customized photos
+- Drag borders to customize aspect ratios per photo; drag & drop to reorder
+- **Crop / reposition** the visible section of a photo
+- **Detach a photo from the auto-layout** for free placement, resizing and rotation
+- Custom captions with text styling (size, font, color, background)
+- Cycle description positions (bottom, top, left, right); toggle dates/descriptions
+- Reset customizations individually or all at once, with indicators for customized photos
+
+### Design Elements
+
+- **Blank pages and design/blank spaces** ("Leerräume") insertable at any position
+- **Drawing zones** — sketch with pen/finger/mouse into a blank space
+- **Insertable, zoomable map** showing the GPS coordinates of a page's photos, in the Immich map style
+- **Title page** with image, title/subtitle, own text styling and portrait/landscape option
+- Transparent blank-space background option
 
 ### Preview & Export
 
 - Live preview with actual page layout and dimensions
-- Page break indicator in combined mode
-- High-quality PDF export using @react-pdf/renderer
-- Quick edit links to Immich asset pages
+- High-quality PDF export using @react-pdf/renderer (single source of truth for web + PDF)
 - Clean, responsive UI built with React and Tailwind CSS
 
 ## Getting Started
@@ -211,7 +223,7 @@ registry credentials in Portainer, so it can be pulled.
 > then you must **allow CORS** for this app's origin on your Immich server, see
 > [Enable CORS](#enable-cors-on-your-immich-server).
 
-### Using Immich Book
+### Using BilderBuch
 
 1. **Connect to Immich**
    - Visit your [self-hosted](#self-hosting-recommended) (recommended) instance of `immich-book`
