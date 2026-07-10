@@ -56,6 +56,13 @@ import {
   elementBoxStyle,
 } from "./ElementRenderer";
 import { photoBoxToImageElement } from "../utils/photoBoxToElement";
+import { localMediaUrl } from "../utils/remoteStore";
+import {
+  isLocalAlbumId,
+  loadLocalAlbum,
+  addPhotosToLocalAlbum,
+  localAlbumAssets,
+} from "../utils/localAlbum";
 import {
   createEmojiElement,
   createImageElement,
@@ -628,10 +635,24 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     isSpacingValid,
   ]);
 
+  // Bild-URL eines (echten) Fotos: bei lokalen Alben aus dem Store-Volume,
+  // sonst als Immich-Thumbnail same-origin über den /api-Proxy.
+  const isLocal = isLocalAlbumId(album.id);
+  const assetImageUrl = (assetId: string): string =>
+    isLocal
+      ? localMediaUrl(album.id, assetId)
+      : `${immichConfig.baseUrl}/assets/${assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`;
+
   const loadAlbumAssets = async () => {
     try {
       setIsLoading(true);
       setError(null);
+      if (isLocal) {
+        // Lokales Album: Fotos kommen aus dem Manifest (bereits im synthetischen
+        // AlbumResponseDto), Reihenfolge = Upload-Reihenfolge.
+        setAssets(album.assets ?? []);
+        return;
+      }
       const albumData = await getAlbumInfo({ id: album.id });
       // Sort assets by creation date ascending
       const sorted = albumData.assets.sort((a, b) => {
@@ -647,6 +668,33 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Lokales Album: weitere Fotos im Editor hochladen (Store + Manifest + Grid).
+  const [isUploadingLocal, setIsUploadingLocal] = useState(false);
+  const [localUploadProgress, setLocalUploadProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  const handleAddLocalPhotos = async (files: FileList | File[]) => {
+    if (!isLocal) return;
+    const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (list.length === 0) return;
+    setIsUploadingLocal(true);
+    setLocalUploadProgress({ done: 0, total: list.length });
+    try {
+      const current = await loadLocalAlbum(album.id);
+      if (!current) return;
+      const updated = await addPhotosToLocalAlbum(current, list, (done, total) =>
+        setLocalUploadProgress({ done, total }),
+      );
+      setAssets(localAlbumAssets(updated));
+    } catch (e) {
+      console.error("Upload lokaler Fotos fehlgeschlagen:", e);
+    } finally {
+      setIsUploadingLocal(false);
+      setLocalUploadProgress(null);
     }
   };
 
@@ -1546,7 +1594,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             ctx={{
               imageUrl:
                 el.src ??
-                `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
+                assetImageUrl(el.assetId),
               descPosition: "bottom",
               styles: webStyles,
             }}
@@ -1596,9 +1644,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
           key={el.id}
           element={el}
           ctx={{
-            imageUrl:
-              el.src ??
-              `${immichConfig.baseUrl}/assets/${el.assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
+            imageUrl: el.src ?? assetImageUrl(el.assetId),
             descPosition: "bottom",
             styles: pdfStyles,
           }}
@@ -1864,6 +1910,31 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 <Icon path={mdiPencil} size={0.8} />
                 Zurück zum Editor
               </button>
+            )}
+
+            {isLocal && (
+              <label
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:bg-stone-50 ${
+                  isUploadingLocal ? "pointer-events-none opacity-60" : ""
+                }`}
+                title="Weitere Fotos in dieses lokale Album hochladen"
+              >
+                <Icon path={mdiImagePlusOutline} size={0.8} />
+                {isUploadingLocal
+                  ? `Lädt… ${localUploadProgress?.done ?? 0}/${localUploadProgress?.total ?? 0}`
+                  : "Fotos hinzufügen"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  disabled={isUploadingLocal}
+                  onChange={(e) => {
+                    if (e.target.files) handleAddLocalPhotos(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
             )}
 
             {/* Ansicht: Einzel/Doppel */}
@@ -2514,7 +2585,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   title="Frei einfügen"
                 >
                   <img
-                    src={`${immichConfig.baseUrl}/assets/${asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`}
+                    src={assetImageUrl(asset.id)}
                     alt={asset.originalFileName}
                     className="w-full h-full object-cover"
                     loading="lazy"
@@ -2547,7 +2618,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 .map((asset) => (
                   <div key={asset.id} className="relative w-24 h-24 group">
                     <img
-                      src={`${immichConfig.baseUrl}/assets/${asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`}
+                      src={assetImageUrl(asset.id)}
                       alt={asset.originalFileName}
                       className="w-full h-full object-cover rounded border border-stone-300"
                       loading="lazy"
@@ -2787,7 +2858,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           </View>
                         );
                       }
-                      const imageUrl = `${immichConfig.baseUrl}/assets/${photoBox.asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`;
+                      const imageUrl = assetImageUrl(photoBox.asset.id);
                       const customCaption = imageCaptionTexts.get(
                         photoBox.asset.id,
                       );
@@ -2933,7 +3004,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       (ph) => !isBlocker(ph.asset.id),
                     );
                     const thumb = firstPhoto
-                      ? `${immichConfig.baseUrl}/assets/${firstPhoto.asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`
+                      ? assetImageUrl(firstPhoto.asset.id)
                       : null;
                     return (
                       <button
@@ -3752,7 +3823,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
                   {/* Photos */}
                   {page.photos.map((photoBox) => {
-                    const imageUrl = `${immichConfig.baseUrl}/assets/${photoBox.asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`;
+                    const imageUrl = assetImageUrl(photoBox.asset.id);
                     const isDragging =
                       aspectDragState?.assetId === photoBox.asset.id;
 

@@ -70,3 +70,81 @@ export const albumStoreName = (albumId: string): string => `album-${albumId}`;
 
 /** Store-Name für die globale Konfiguration. */
 export const GLOBAL_STORE_NAME = "global";
+
+/* ------------------------------------------------------------------ */
+/* Binär-Dateien (z. B. hochgeladene Fotos lokaler Alben).             */
+/* Diese liegen als echte Dateien im Store-Volume und werden per URL   */
+/* referenziert (statt base64 in der Konfig) – klein & skalierbar.     */
+/* ------------------------------------------------------------------ */
+
+const STORE_ROOT = STORE_BASE; // "/store"
+
+/** Öffentliche URL einer Store-Datei (same-origin, vom nginx-WebDAV geliefert). */
+export function storeUrl(path: string): string {
+  return `${STORE_ROOT}/${path.replace(/^\/+/, "")}`;
+}
+
+/** URL des Mediums (Foto) eines lokalen Albums. */
+export function localMediaUrl(albumId: string, mediaId: string): string {
+  return storeUrl(`media/${albumId}/${mediaId}.jpg`);
+}
+
+/**
+ * Lädt ein Binär-Objekt (Foto) in den Store. Wirft bei Fehler, damit der
+ * Aufrufer den Upload-Fehler anzeigen kann (anders als die JSON-Konfig, wo ein
+ * fehlgeschlagener Push toleriert wird).
+ */
+export async function putRemoteMedia(
+  albumId: string,
+  mediaId: string,
+  blob: Blob,
+): Promise<void> {
+  const res = await fetch(localMediaUrl(albumId, mediaId), {
+    method: "PUT",
+    headers: { "Content-Type": blob.type || "image/jpeg" },
+    body: blob,
+  });
+  if (!res.ok) throw new Error(`Upload fehlgeschlagen (HTTP ${res.status})`);
+}
+
+/** Löscht ein Medium (best effort). */
+export async function deleteRemoteMedia(
+  albumId: string,
+  mediaId: string,
+): Promise<void> {
+  try {
+    await fetch(localMediaUrl(albumId, mediaId), { method: "DELETE" });
+  } catch {
+    /* egal */
+  }
+}
+
+/** Löscht eine beliebige Store-JSON-Datei (best effort). */
+export async function deleteRemoteConfig(name: string): Promise<void> {
+  try {
+    await fetch(`${STORE_ROOT}/${name}.json`, { method: "DELETE" });
+  } catch {
+    /* egal */
+  }
+}
+
+/**
+ * Speichert SOFORT (unentprellt) eine JSON-Datei im Store und meldet Erfolg.
+ * Für Manifest-/Index-Schreibvorgänge lokaler Alben, wo wir auf das Ergebnis
+ * warten wollen (anders als der entprellte Editor-Autosave).
+ */
+export async function putRemoteConfigNow(
+  name: string,
+  body: string,
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${STORE_ROOT}/${name}.json`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
