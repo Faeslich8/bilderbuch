@@ -456,14 +456,17 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   } | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
 
-  // Drag state for aspect ratio adjustment
+  // Drag state for aspect ratio adjustment (horizontal edges = width,
+  // vertical edges = height; beides ändert das Seitenverhältnis).
   const [aspectDragState, setAspectDragState] = useState<{
     assetId: string;
-    edge: "left" | "right";
+    edge: "left" | "right" | "top" | "bottom";
     startX: number;
+    startY: number;
     originalAspectRatio: number;
     originalX: number;
     originalWidth: number;
+    originalHeight: number;
   } | null>(null);
 
   // Drag state for crop (object-position) adjustment
@@ -702,10 +705,11 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   // Handle aspect ratio drag start
   const handleAspectDragStart = (
     assetId: string,
-    edge: "left" | "right",
+    edge: "left" | "right" | "top" | "bottom",
     aspectRatio: number,
     x: number,
     width: number,
+    height: number,
     event: React.MouseEvent,
   ) => {
     event.preventDefault();
@@ -714,9 +718,26 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       assetId,
       edge,
       startX: event.clientX,
+      startY: event.clientY,
       originalAspectRatio: aspectRatio,
       originalX: x,
       originalWidth: width,
+      originalHeight: height,
+    });
+  };
+
+  // Fotos einer Seite automatisch anordnen: manuelle Seitenverhältnisse (und
+  // damit vertikale/horizontale Größenänderungen) der Fotos dieser Seite
+  // zurücksetzen -> das justierte Layout skaliert und verteilt sie gleichmäßig.
+  const handleAutoArrangePage = (photos: { asset: { id: string } }[]) => {
+    const ids = photos
+      .map((p) => p.asset.id)
+      .filter((id) => !isBlocker(id));
+    if (ids.length === 0) return;
+    setCustomAspectRatios((prev) => {
+      const next = new Map(prev);
+      for (const id of ids) next.delete(id);
+      return next;
     });
   };
 
@@ -1469,6 +1490,32 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     if (!aspectDragState) return;
 
     const handleMouseMove = (event: MouseEvent) => {
+      // Vertikale Kanten (oben/unten): Höhe ziehen -> Seitenverhältnis ändern.
+      // Im justierten Layout wird ein Foto dadurch höher (schmaler) bzw. flacher.
+      if (
+        aspectDragState.edge === "top" ||
+        aspectDragState.edge === "bottom"
+      ) {
+        const deltaY = event.clientY - aspectDragState.startY;
+        const dPix = screenToLayoutPx(deltaY);
+        const heightDelta =
+          aspectDragState.edge === "bottom" ? dPix : -dPix;
+        const newHeight = Math.max(
+          50,
+          aspectDragState.originalHeight + heightDelta,
+        );
+        // Breite konstant halten (analog zum horizontalen Ziehen).
+        const widthFromOriginal =
+          aspectDragState.originalHeight * aspectDragState.originalAspectRatio;
+        const newAspectRatio = widthFromOriginal / newHeight;
+        setCustomAspectRatios((prev) => {
+          const next = new Map(prev);
+          next.set(aspectDragState.assetId, newAspectRatio);
+          return next;
+        });
+        return;
+      }
+
       const deltaX = event.clientX - aspectDragState.startX;
       // Convert from 72 DPI screen to 300 DPI layout
       const deltaPixels = screenToLayoutPx(deltaX);
@@ -3804,6 +3851,14 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     >
                       <Icon path={mdiFilePlusOutline} size={0.6} />
                     </button>
+                    <button
+                      onClick={() => handleAutoArrangePage(page.photos)}
+                      className="px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                      title="Fotos dieser Doppelseite automatisch anordnen (manuelle Größen zurücksetzen)"
+                    >
+                      <Icon path={mdiViewGridOutline} size={0.6} />
+                      <span className="hidden sm:inline">Auto</span>
+                    </button>
                   </div>
                 ) : (
                   /* Single page mode - center everything */
@@ -3866,6 +3921,14 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         title="Leerseite nach dieser Seite einfügen"
                       >
                         <Icon path={mdiFilePlusOutline} size={0.6} />
+                      </button>
+                      <button
+                        onClick={() => handleAutoArrangePage(page.photos)}
+                        className="px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                        title="Fotos dieser Seite automatisch anordnen (manuelle Größen zurücksetzen)"
+                      >
+                        <Icon path={mdiViewGridOutline} size={0.6} />
+                        <span className="hidden sm:inline">Auto</span>
                       </button>
                     </div>
                   </div>
@@ -4041,6 +4104,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                   aspectRatio,
                                   photoBox.x,
                                   photoBox.width,
+                                  photoBox.height,
                                   e,
                                 )
                               }
@@ -4054,6 +4118,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                   aspectRatio,
                                   photoBox.x,
                                   photoBox.width,
+                                  photoBox.height,
                                   e,
                                 )
                               }
@@ -4249,6 +4314,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                 aspectRatio,
                                 photoBox.x,
                                 photoBox.width,
+                                photoBox.height,
                                 e,
                               )
                             }
@@ -4262,6 +4328,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                 aspectRatio,
                                 photoBox.x,
                                 photoBox.width,
+                                photoBox.height,
                                 e,
                               )
                             }
@@ -4453,34 +4520,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           </>
                         )}
 
-                        {/* Customization indicators */}
-                        {hasAspectRatioCustomization && (
-                          <div
-                            className="absolute top-2 left-2 w-2 h-2 bg-primary-500 rounded-full shadow-lg"
-                            title="Aspect ratio customized"
-                          />
-                        )}
-                        {hasDescriptionPositionCustomization && (
-                          <div
-                            className="absolute top-2 left-5 w-2 h-2 bg-purple-500 rounded-full shadow-lg"
-                            title="Label position customized"
-                          />
-                        )}
-                        {isReordered && (
-                          <div
-                            className="absolute top-2 left-8 w-2 h-2 bg-green-500 rounded-full shadow-lg"
-                            title="Image reordered"
-                          />
-                        )}
-                        {hasCropCustomization && (
-                          <div
-                            className="absolute top-2 left-11 w-2 h-2 bg-amber-500 rounded-full shadow-lg"
-                            title="Crop customized"
-                          />
-                        )}
-
-                        {/* Reset button - shown on hover for customized images */}
-                        {(isCustomized || isReordered) && !isCropping && (
+                        {/* Reset button - shown on hover for genuinely customized images */}
+                        {isCustomized && !isCropping && (
                           <div
                             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer bg-primary-500 hover:bg-primary-600 text-white px-3 py-1 rounded shadow-lg text-xs font-medium"
                             onClick={(e) => {
@@ -4644,6 +4685,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                               aspectRatio,
                               photoBox.x,
                               photoBox.width,
+                              photoBox.height,
                               e,
                             )
                           }
@@ -4663,6 +4705,47 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                               aspectRatio,
                               photoBox.x,
                               photoBox.width,
+                              photoBox.height,
+                              e,
+                            )
+                          }
+                        />
+
+                        {/* Top drag handle (vertikal skalieren) */}
+                        <div
+                          className={`absolute left-0 right-0 top-0 h-2 cursor-ns-resize transition-colors ${
+                            isDragging && aspectDragState.edge === "top"
+                              ? "bg-primary-500"
+                              : "bg-transparent group-hover:bg-primary-400/50"
+                          }`}
+                          onMouseDown={(e) =>
+                            handleAspectDragStart(
+                              photoBox.asset.id,
+                              "top",
+                              aspectRatio,
+                              photoBox.x,
+                              photoBox.width,
+                              photoBox.height,
+                              e,
+                            )
+                          }
+                        />
+
+                        {/* Bottom drag handle (vertikal skalieren) */}
+                        <div
+                          className={`absolute left-0 right-0 bottom-0 h-2 cursor-ns-resize transition-colors ${
+                            isDragging && aspectDragState.edge === "bottom"
+                              ? "bg-primary-500"
+                              : "bg-transparent group-hover:bg-primary-400/50"
+                          }`}
+                          onMouseDown={(e) =>
+                            handleAspectDragStart(
+                              photoBox.asset.id,
+                              "bottom",
+                              aspectRatio,
+                              photoBox.x,
+                              photoBox.width,
+                              photoBox.height,
                               e,
                             )
                           }
