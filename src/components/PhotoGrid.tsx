@@ -726,21 +726,6 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     });
   };
 
-  // Fotos einer Seite automatisch anordnen: manuelle Seitenverhältnisse (und
-  // damit vertikale/horizontale Größenänderungen) der Fotos dieser Seite
-  // zurücksetzen -> das justierte Layout skaliert und verteilt sie gleichmäßig.
-  const handleAutoArrangePage = (photos: { asset: { id: string } }[]) => {
-    const ids = photos
-      .map((p) => p.asset.id)
-      .filter((id) => !isBlocker(id));
-    if (ids.length === 0) return;
-    setCustomAspectRatios((prev) => {
-      const next = new Map(prev);
-      for (const id of ids) next.delete(id);
-      return next;
-    });
-  };
-
   // Handle crop (object-position) drag start
   const handleCropDragStart = (
     assetId: string,
@@ -3851,14 +3836,6 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     >
                       <Icon path={mdiFilePlusOutline} size={0.6} />
                     </button>
-                    <button
-                      onClick={() => handleAutoArrangePage(page.photos)}
-                      className="px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
-                      title="Fotos dieser Doppelseite automatisch anordnen (manuelle Größen zurücksetzen)"
-                    >
-                      <Icon path={mdiViewGridOutline} size={0.6} />
-                      <span className="hidden sm:inline">Auto</span>
-                    </button>
                   </div>
                 ) : (
                   /* Single page mode - center everything */
@@ -3921,14 +3898,6 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         title="Leerseite nach dieser Seite einfügen"
                       >
                         <Icon path={mdiFilePlusOutline} size={0.6} />
-                      </button>
-                      <button
-                        onClick={() => handleAutoArrangePage(page.photos)}
-                        className="px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
-                        title="Fotos dieser Seite automatisch anordnen (manuelle Größen zurücksetzen)"
-                      >
-                        <Icon path={mdiViewGridOutline} size={0.6} />
-                        <span className="hidden sm:inline">Auto</span>
                       </button>
                     </div>
                   </div>
@@ -4711,45 +4680,6 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           }
                         />
 
-                        {/* Top drag handle (vertikal skalieren) */}
-                        <div
-                          className={`absolute left-0 right-0 top-0 h-2 cursor-ns-resize transition-colors ${
-                            isDragging && aspectDragState.edge === "top"
-                              ? "bg-primary-500"
-                              : "bg-transparent group-hover:bg-primary-400/50"
-                          }`}
-                          onMouseDown={(e) =>
-                            handleAspectDragStart(
-                              photoBox.asset.id,
-                              "top",
-                              aspectRatio,
-                              photoBox.x,
-                              photoBox.width,
-                              photoBox.height,
-                              e,
-                            )
-                          }
-                        />
-
-                        {/* Bottom drag handle (vertikal skalieren) */}
-                        <div
-                          className={`absolute left-0 right-0 bottom-0 h-2 cursor-ns-resize transition-colors ${
-                            isDragging && aspectDragState.edge === "bottom"
-                              ? "bg-primary-500"
-                              : "bg-transparent group-hover:bg-primary-400/50"
-                          }`}
-                          onMouseDown={(e) =>
-                            handleAspectDragStart(
-                              photoBox.asset.id,
-                              "bottom",
-                              aspectRatio,
-                              photoBox.x,
-                              photoBox.width,
-                              photoBox.height,
-                              e,
-                            )
-                          }
-                        />
                       </div>
                     );
                   })}
