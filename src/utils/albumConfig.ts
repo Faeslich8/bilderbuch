@@ -127,6 +127,9 @@ export interface GlobalConfig {
   fontSize: number;
   // Seitenhintergrund (ganzes Buch)
   pageBackground: PageBackground;
+  // Layout-Modus: "justified" = klassische Zeilen (Default, unveraendert);
+  // "collage" = justierte Baender aus Spalten (zeilenuebergreifende Kacheln).
+  layoutMode: "justified" | "collage";
 }
 
 /**
@@ -148,6 +151,8 @@ export interface StoredImageCaption {
  */
 export interface AlbumConfig extends GlobalConfig {
   customAspectRatios: Record<string, number>;
+  /** Höhenfaktor je assetId für den Collage-Modus (Default 1). */
+  heightFactors: Record<string, number>;
   customOrdering: string[] | null;
   descriptionPositions: Record<string, Position>;
   pageAlignments: Record<number, PageAlignment>;
@@ -170,6 +175,8 @@ export interface AlbumConfigV2 extends GlobalConfig {
   schemaVersion: typeof CURRENT_SCHEMA_VERSION;
   // Auto-Layout-Anpassungen (unverändert übernommen)
   customAspectRatios: Record<string, number>;
+  /** Höhenfaktor je assetId für den Collage-Modus (Default 1). */
+  heightFactors: Record<string, number>;
   customOrdering: string[] | null;
   pageAlignments: Record<number, PageAlignment>;
   // NEU in V2:
@@ -217,6 +224,7 @@ export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   showDescriptions: true,
   fontSize: 12,
   pageBackground: "white",
+  layoutMode: "justified",
 };
 
 /* ------------------------------------------------------------------ */
@@ -389,7 +397,9 @@ export function saveAlbumConfig(
       showDescriptions: config.showDescriptions,
       fontSize: config.fontSize,
       pageBackground: config.pageBackground,
+      layoutMode: config.layoutMode ?? "justified",
       customAspectRatios: config.customAspectRatios ?? {},
+      heightFactors: config.heightFactors ?? {},
       customOrdering: config.customOrdering ?? null,
       pageAlignments: config.pageAlignments ?? {},
       cropPositions: config.cropPositions ?? {},
@@ -424,6 +434,7 @@ export function saveAlbumConfig(
       showDescriptions: config.showDescriptions,
       fontSize: config.fontSize,
       pageBackground: config.pageBackground,
+      layoutMode: config.layoutMode ?? "justified",
     });
   } catch (e) {
     console.error("Failed to save album config:", e);

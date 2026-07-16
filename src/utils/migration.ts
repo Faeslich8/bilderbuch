@@ -250,6 +250,7 @@ function pickGlobal(
     showDescriptions: pick("showDescriptions", fallback.showDescriptions),
     fontSize: pick("fontSize", fallback.fontSize),
     pageBackground: pick("pageBackground", fallback.pageBackground),
+    layoutMode: pick("layoutMode", fallback.layoutMode),
   };
 }
 
@@ -267,6 +268,7 @@ export function migrateRawAlbumConfig(
       schemaVersion: SCHEMA_VERSION,
       ...globalConfig,
       customAspectRatios: {},
+      heightFactors: {},
       customOrdering: null,
       pageAlignments: {},
       cropPositions: {},
@@ -287,6 +289,9 @@ export function migrateRawAlbumConfig(
   const customAspectRatios = isPlainObject(raw.customAspectRatios)
     ? (raw.customAspectRatios as Record<string, number>)
     : {};
+  const heightFactors = isPlainObject(raw.heightFactors)
+    ? (raw.heightFactors as Record<string, number>)
+    : {};
   const customOrdering = Array.isArray(raw.customOrdering)
     ? (raw.customOrdering as string[])
     : null;
@@ -303,6 +308,7 @@ export function migrateRawAlbumConfig(
       schemaVersion: SCHEMA_VERSION,
       ...global,
       customAspectRatios,
+      heightFactors,
       customOrdering,
       pageAlignments,
       cropPositions: sanitizeCropPositions(raw.cropPositions),
@@ -323,6 +329,7 @@ export function migrateRawAlbumConfig(
     schemaVersion: SCHEMA_VERSION,
     ...global,
     customAspectRatios,
+    heightFactors,
     customOrdering,
     pageAlignments,
     cropPositions: {},
