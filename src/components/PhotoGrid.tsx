@@ -784,6 +784,19 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     if (layoutMode !== "collage") setLayoutMode("collage");
   };
 
+  // Raster-Modus: Fotos einer Seite automatisch anordnen -> manuelle
+  // Seitenverhältnisse (Größen) der Fotos dieser Seite zurücksetzen, sodass das
+  // justierte Layout sie gleichmäßig skaliert und verteilt.
+  const handleAutoArrangePage = (photos: { asset: AssetResponseDto }[]) => {
+    const ids = photos.map((p) => p.asset.id).filter((id) => !isBlocker(id));
+    if (ids.length === 0) return;
+    setCustomAspectRatios((prev) => {
+      const next = new Map(prev);
+      for (const id of ids) next.delete(id);
+      return next;
+    });
+  };
+
   // Handle crop (object-position) drag start
   const handleCropDragStart = (
     assetId: string,
@@ -3932,7 +3945,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     >
                       <Icon path={mdiFilePlusOutline} size={0.6} />
                     </button>
-                    {layoutMode === "collage" && (
+                    {layoutMode === "collage" ? (
                       <button
                         onClick={() => handleAutoCollagePage(page.photos)}
                         className="px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
@@ -3940,6 +3953,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       >
                         <Icon path={mdiViewGridOutline} size={0.6} />
                         <span className="hidden sm:inline">Auto-Collage</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleAutoArrangePage(page.photos)}
+                        className="px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                        title="Auto anordnen: manuelle Größen dieser Doppelseite zurücksetzen (gleichmäßig verteilen)"
+                      >
+                        <Icon path={mdiViewGridOutline} size={0.6} />
+                        <span className="hidden sm:inline">Auto</span>
                       </button>
                     )}
                   </div>
@@ -4005,7 +4027,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       >
                         <Icon path={mdiFilePlusOutline} size={0.6} />
                       </button>
-                      {layoutMode === "collage" && (
+                      {layoutMode === "collage" ? (
                         <button
                           onClick={() => handleAutoCollagePage(page.photos)}
                           className="px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
@@ -4013,6 +4035,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         >
                           <Icon path={mdiViewGridOutline} size={0.6} />
                           <span className="hidden sm:inline">Auto-Collage</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleAutoArrangePage(page.photos)}
+                          className="px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                          title="Auto anordnen: manuelle Größen dieser Seite zurücksetzen (gleichmäßig verteilen)"
+                        >
+                          <Icon path={mdiViewGridOutline} size={0.6} />
+                          <span className="hidden sm:inline">Auto</span>
                         </button>
                       )}
                     </div>
