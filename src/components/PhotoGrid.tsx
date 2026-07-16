@@ -23,6 +23,7 @@ import {
 } from "@react-pdf/renderer";
 import {
   calculatePageLayout,
+  calculateCollageLayout,
   PAGE_SIZES,
   type PageAlignment,
 } from "../utils/pageLayout";
@@ -394,6 +395,14 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const pdfStyles = useMemo(() => createDynamicStyles(fontSize), [fontSize]);
   const webStyles = useMemo(() => createWebStyles(fontSize), [fontSize]);
 
+  // Layout-Modus (justified/collage) und Collage-Höhenfaktoren je Foto.
+  const [layoutMode, setLayoutMode] = useState<"justified" | "collage">(
+    initialConfig.layoutMode,
+  );
+  const [heightFactors, setHeightFactors] = useState<Map<string, number>>(
+    () => new Map(Object.entries(initialConfig.heightFactors)),
+  );
+
   // Customizations
   const [customAspectRatios, setCustomAspectRatios] = useState<
     Map<string, number>
@@ -587,7 +596,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       showDescriptions,
       fontSize,
       pageBackground,
+      layoutMode,
       customAspectRatios: Object.fromEntries(customAspectRatios),
+      heightFactors: Object.fromEntries(heightFactors),
       customOrdering,
       descriptionPositions: Object.fromEntries(descriptionPositions),
       pageAlignments: Object.fromEntries(pageAlignments),
@@ -619,7 +630,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     showDescriptions,
     fontSize,
     pageBackground,
+    layoutMode,
     customAspectRatios,
+    heightFactors,
     customOrdering,
     descriptionPositions,
     pageAlignments,
@@ -724,6 +737,51 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       originalWidth: width,
       originalHeight: height,
     });
+  };
+
+  // Natürliches/eingestelltes Seitenverhältnis eines Assets.
+  const assetAspectRatio = (asset: AssetResponseDto): number => {
+    const custom = customAspectRatios.get(asset.id);
+    if (custom) return custom;
+    const w = asset.exifInfo?.exifImageWidth || 1;
+    const h = asset.exifInfo?.exifImageHeight || 1;
+    if (asset.exifInfo?.orientation === "6") return h / w;
+    return w / h;
+  };
+
+  // Collage: eine Kachel zwischen "normal" (1) und "hoch" (2) umschalten.
+  const toggleHeightFactor = (assetId: string) => {
+    setHeightFactors((prev) => {
+      const next = new Map(prev);
+      if ((next.get(assetId) ?? 1) >= 2) next.delete(assetId);
+      else next.set(assetId, 2);
+      return next;
+    });
+  };
+
+  // Auto-Collage für eine Seite: Hochformate zu hohen Kacheln machen (mit
+  // Abstand, damit daneben Kacheln gestapelt werden) -> Masonry-Verteilung.
+  const handleAutoCollagePage = (photos: { asset: AssetResponseDto }[]) => {
+    setHeightFactors((prev) => {
+      const next = new Map(prev);
+      let prevTall = false;
+      for (const pb of photos) {
+        const id = pb.asset.id;
+        if (isBlocker(id)) {
+          prevTall = false;
+          continue;
+        }
+        if (assetAspectRatio(pb.asset) < 0.9 && !prevTall) {
+          next.set(id, 2);
+          prevTall = true;
+        } else {
+          next.delete(id);
+          prevTall = false;
+        }
+      }
+      return next;
+    });
+    if (layoutMode !== "collage") setLayoutMode("collage");
   };
 
   // Handle crop (object-position) drag start
@@ -1270,9 +1328,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       }
     });
 
-    return calculatePageLayout(layoutAssets, {
-      pageSize: "CUSTOM",
-      orientation: "portrait",
+    const layoutOptions = {
+      pageSize: "CUSTOM" as const,
+      orientation: "portrait" as const,
       margin: validMargin,
       rowHeight: validRowHeight,
       spacing: validSpacing,
@@ -1281,7 +1339,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       combinePages,
       customAspectRatios: adjustedAspectRatios,
       pageAlignments,
-    });
+    };
+    // Collage-Modus: eigene Engine (justierte Bänder aus Spalten).
+    if (layoutMode === "collage") {
+      return calculateCollageLayout(layoutAssets, {
+        ...layoutOptions,
+        heightFactors,
+      });
+    }
+    return calculatePageLayout(layoutAssets, layoutOptions);
   }, [
     filteredAssets,
     manualizedAssetIds,
@@ -1295,6 +1361,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     descriptionPositions,
     showDescriptions,
     pageAlignments,
+    layoutMode,
+    heightFactors,
   ]);
 
   // Den globalen "Bild hier ablegen"-Hinweis zuverlässig zurücksetzen — bei JEDEM
@@ -2030,6 +2098,34 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               >
                 <Icon path={mdiBookOpenOutline} size={0.7} />
                 <span className="hidden sm:inline">Doppel</span>
+              </button>
+            </div>
+
+            {/* Layout: Raster/Collage */}
+            <div className="inline-flex items-center rounded-lg border border-stone-300 bg-white p-0.5 shadow-sm">
+              <button
+                onClick={() => setLayoutMode("justified")}
+                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
+                  layoutMode === "justified"
+                    ? "bg-primary-600 text-white"
+                    : "text-stone-600 hover:bg-stone-50"
+                }`}
+                title="Klassisches Zeilen-Layout"
+              >
+                <span className="hidden sm:inline">Raster</span>
+                <span className="sm:hidden">▤</span>
+              </button>
+              <button
+                onClick={() => setLayoutMode("collage")}
+                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
+                  layoutMode === "collage"
+                    ? "bg-primary-600 text-white"
+                    : "text-stone-600 hover:bg-stone-50"
+                }`}
+                title="Collage: zeilenübergreifende Kacheln (Bilder verschieden hoch)"
+              >
+                <Icon path={mdiViewGridOutline} size={0.7} />
+                <span className="hidden sm:inline">Collage</span>
               </button>
             </div>
 
@@ -3836,6 +3932,16 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     >
                       <Icon path={mdiFilePlusOutline} size={0.6} />
                     </button>
+                    {layoutMode === "collage" && (
+                      <button
+                        onClick={() => handleAutoCollagePage(page.photos)}
+                        className="px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                        title="Auto-Collage: Fotos dieser Doppelseite als Collage anordnen"
+                      >
+                        <Icon path={mdiViewGridOutline} size={0.6} />
+                        <span className="hidden sm:inline">Auto-Collage</span>
+                      </button>
+                    )}
                   </div>
                 ) : (
                   /* Single page mode - center everything */
@@ -3899,6 +4005,16 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       >
                         <Icon path={mdiFilePlusOutline} size={0.6} />
                       </button>
+                      {layoutMode === "collage" && (
+                        <button
+                          onClick={() => handleAutoCollagePage(page.photos)}
+                          className="px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                          title="Auto-Collage: Fotos dieser Seite als Collage anordnen"
+                        >
+                          <Icon path={mdiViewGridOutline} size={0.6} />
+                          <span className="hidden sm:inline">Auto-Collage</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -4544,6 +4660,24 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         {/* Kompakte Foto-Werkzeugleiste (Icons) */}
                         {!isCropping && (
                           <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-lg bg-stone-900/75 p-0.5 opacity-0 shadow backdrop-blur transition-opacity group-hover:opacity-100">
+                            {layoutMode === "collage" && (
+                              <button
+                                className={`rounded px-1.5 py-1 text-sm leading-none text-white transition-colors hover:bg-white/20 ${
+                                  (heightFactors.get(photoBox.asset.id) ?? 1) >= 2
+                                    ? "bg-primary-500"
+                                    : ""
+                                }`}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  toggleHeightFactor(photoBox.asset.id);
+                                }}
+                                title="Hohe Kachel (über mehrere Zeilen) an/aus"
+                                aria-label="Höhe umschalten"
+                              >
+                                ↕
+                              </button>
+                            )}
                             <button
                               className="rounded p-1 text-white transition-colors hover:bg-white/20"
                               onClick={(e) => {
