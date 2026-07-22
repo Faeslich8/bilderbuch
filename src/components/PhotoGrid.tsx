@@ -402,6 +402,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const [heightFactors, setHeightFactors] = useState<Map<string, number>>(
     () => new Map(Object.entries(initialConfig.heightFactors)),
   );
+  // Ausrichtung einzelner Fotos im freien Platz ihrer Zeile.
+  const [imageAlignments, setImageAlignments] = useState<
+    Map<string, PageAlignment>
+  >(() => new Map(Object.entries(initialConfig.imageAlignments)));
 
   // Customizations
   const [customAspectRatios, setCustomAspectRatios] = useState<
@@ -599,6 +603,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       layoutMode,
       customAspectRatios: Object.fromEntries(customAspectRatios),
       heightFactors: Object.fromEntries(heightFactors),
+      imageAlignments: Object.fromEntries(imageAlignments),
       customOrdering,
       descriptionPositions: Object.fromEntries(descriptionPositions),
       pageAlignments: Object.fromEntries(pageAlignments),
@@ -633,6 +638,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     layoutMode,
     customAspectRatios,
     heightFactors,
+    imageAlignments,
     customOrdering,
     descriptionPositions,
     pageAlignments,
@@ -747,6 +753,20 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     const h = asset.exifInfo?.exifImageHeight || 1;
     if (asset.exifInfo?.orientation === "6") return h / w;
     return w / h;
+  };
+
+  // Ausrichtung eines Fotos in seiner Zeile durchschalten:
+  // Seiten-Standard -> links -> mittig -> rechts -> Seiten-Standard.
+  const cycleImageAlignment = (assetId: string) => {
+    setImageAlignments((prev) => {
+      const next = new Map(prev);
+      const cur = next.get(assetId);
+      if (!cur) next.set(assetId, "left");
+      else if (cur === "left") next.set(assetId, "center");
+      else if (cur === "center") next.set(assetId, "right");
+      else next.delete(assetId);
+      return next;
+    });
   };
 
   // Collage: eine Kachel zwischen "normal" (1) und "hoch" (2) umschalten.
@@ -1352,6 +1372,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       combinePages,
       customAspectRatios: adjustedAspectRatios,
       pageAlignments,
+      imageAlignments,
     };
     // Collage-Modus: eigene Engine (justierte Bänder aus Spalten).
     if (layoutMode === "collage") {
@@ -1374,6 +1395,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     descriptionPositions,
     showDescriptions,
     pageAlignments,
+    imageAlignments,
     layoutMode,
     heightFactors,
   ]);
@@ -4709,6 +4731,37 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                 ↕
                               </button>
                             )}
+                            <button
+                              className={`rounded p-1 text-white transition-colors hover:bg-white/20 ${
+                                imageAlignments.has(photoBox.asset.id)
+                                  ? "bg-primary-500"
+                                  : ""
+                              }`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                cycleImageAlignment(photoBox.asset.id);
+                              }}
+                              title={`Ausrichtung in der Zeile: ${
+                                imageAlignments.get(photoBox.asset.id) ??
+                                "Seiten-Standard"
+                              } — klicken zum Wechseln (wirkt nur bei freiem Platz in der Zeile)`}
+                              aria-label="Ausrichtung in der Zeile"
+                            >
+                              <Icon
+                                path={
+                                  imageAlignments.get(photoBox.asset.id) ===
+                                  "center"
+                                    ? mdiFormatAlignCenter
+                                    : imageAlignments.get(
+                                          photoBox.asset.id,
+                                        ) === "right"
+                                      ? mdiFormatAlignRight
+                                      : mdiFormatAlignLeft
+                                }
+                                size={0.7}
+                              />
+                            </button>
                             <button
                               className="rounded p-1 text-white transition-colors hover:bg-white/20"
                               onClick={(e) => {

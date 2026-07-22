@@ -67,6 +67,7 @@ export interface LayoutOptions {
   customAspectRatios?: Map<string, number>; // custom aspect ratios per asset ID
   pageAlignments?: Map<number, PageAlignment>; // alignment per page number
   heightFactors?: Map<string, number>; // Collage: Höhenfaktor je Asset (>=2 = hohe Kachel)
+  imageAlignments?: Map<string, PageAlignment>; // Ausrichtung einzelner Fotos in ihrer Zeile
 }
 
 /**
@@ -89,6 +90,7 @@ export function calculatePageLayout(
     customHeight,
     customAspectRatios,
     pageAlignments,
+    imageAlignments,
   } = options;
 
   // Determine page dimensions in pixels
@@ -182,55 +184,75 @@ export function calculatePageLayout(
     pages.push(currentPage);
   }
 
-  // Apply page alignments per row (before combining pages)
-  if (pageAlignments) {
+  // Ausrichtung je Zeile (vor dem Zusammenlegen der Doppelseiten).
+  // Wirkt nur, wenn eine Zeile NICHT voll ist (freier Platz vorhanden).
+  // Jedes Foto kann eine eigene Ausrichtung haben (imageAlignments);
+  // ohne eigene gilt die Seiten-Ausrichtung. Links-Bilder werden links
+  // gepackt, Rechts-Bilder rechts, Mittig-Bilder mittig dazwischen —
+  // dadurch entstehen keine Überlappungen.
+  if (pageAlignments || imageAlignments) {
     for (const page of pages) {
-      const alignment = pageAlignments.get(page.pageNumber) || "left";
+      if (page.photos.length === 0) continue;
+      const pageAlign = pageAlignments?.get(page.pageNumber) || "left";
 
-      if (page.photos.length > 0 && alignment !== "left") {
-        // Group photos by row (photos with same Y position, allowing small tolerance)
-        const rows: PhotoBox[][] = [];
-        const tolerance = 1; // 1 pixel tolerance for grouping rows
+      // Fotos zu Zeilen gruppieren (gleiche Y-Position, kleine Toleranz).
+      const rows: PhotoBox[][] = [];
+      const tolerance = 1;
+      for (const photo of page.photos) {
+        const row = rows.find((r) => Math.abs(r[0].y - photo.y) <= tolerance);
+        if (row) row.push(photo);
+        else rows.push([photo]);
+      }
 
-        for (const photo of page.photos) {
-          // Find existing row with matching Y position
-          let foundRow = false;
-          for (const row of rows) {
-            if (Math.abs(row[0].y - photo.y) <= tolerance) {
-              row.push(photo);
-              foundRow = true;
-              break;
-            }
-          }
-          // Create new row if no matching row found
-          if (!foundRow) {
-            rows.push([photo]);
-          }
+      for (const row of rows) {
+        row.sort((a, b) => a.x - b.x);
+        const minLeftEdge = Math.min(...row.map((p) => p.x));
+        const maxRightEdge = Math.max(...row.map((p) => p.x + p.width));
+        const leftover = contentWidth - (maxRightEdge - minLeftEdge);
+        // Volle Zeile -> nichts auszurichten.
+        if (leftover <= 0.5) continue;
+
+        const effAlign = (p: PhotoBox): PageAlignment =>
+          imageAlignments?.get(p.asset.id) ?? pageAlign;
+        const bucketL = row.filter((p) => effAlign(p) === "left");
+        const bucketC = row.filter((p) => effAlign(p) === "center");
+        const bucketR = row.filter((p) => effAlign(p) === "right");
+        const bucketWidth = (arr: PhotoBox[]) =>
+          arr.length
+            ? arr.reduce((s, p) => s + p.width, 0) + (arr.length - 1) * spacing
+            : 0;
+        const wL = bucketWidth(bucketL);
+        const wC = bucketWidth(bucketC);
+        const wR = bucketWidth(bucketR);
+
+        const left0 = margin;
+        const right0 = margin + contentWidth;
+
+        // Links packen
+        let x = left0;
+        for (const p of bucketL) {
+          p.x = x;
+          x += p.width + spacing;
         }
-
-        // Apply alignment to each row independently
-        for (const row of rows) {
-          const minLeftEdge = Math.min(...row.map((photo) => photo.x));
-          const maxRightEdge = Math.max(
-            ...row.map((photo) => photo.x + photo.width)
+        // Rechts packen (von rechts nach links)
+        let xr = right0;
+        for (let i = bucketR.length - 1; i >= 0; i--) {
+          xr -= bucketR[i].width;
+          bucketR[i].x = xr;
+          xr -= spacing;
+        }
+        // Mittig zwischen den beiden Blöcken
+        if (bucketC.length) {
+          const cMin = left0 + (wL ? wL + spacing : 0);
+          const cMax = right0 - (wR ? wR + spacing : 0);
+          const cStart = Math.max(
+            cMin,
+            Math.min((left0 + right0) / 2 - wC / 2, cMax - wC),
           );
-
-          let shift = 0;
-          if (alignment === "right") {
-            // Calculate shift needed to align right edge to content area
-            const rightEdge = margin + contentWidth;
-            shift = rightEdge - maxRightEdge;
-          } else if (alignment === "center") {
-            // Calculate shift needed to center the content
-            const usedWidth = maxRightEdge - minLeftEdge;
-            const availableSpace = contentWidth - usedWidth;
-            const targetLeftEdge = margin + availableSpace / 2;
-            shift = targetLeftEdge - minLeftEdge;
-          }
-
-          // Apply shift to all photos in this row
-          for (const photo of row) {
-            photo.x += shift;
+          let xc = cStart;
+          for (const p of bucketC) {
+            p.x = xc;
+            xc += p.width + spacing;
           }
         }
       }

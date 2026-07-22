@@ -269,6 +269,7 @@ export function migrateRawAlbumConfig(
       ...globalConfig,
       customAspectRatios: {},
       heightFactors: {},
+      imageAlignments: {},
       customOrdering: null,
       pageAlignments: {},
       cropPositions: {},
@@ -292,6 +293,9 @@ export function migrateRawAlbumConfig(
   const heightFactors = isPlainObject(raw.heightFactors)
     ? (raw.heightFactors as Record<string, number>)
     : {};
+  const imageAlignments = isPlainObject(raw.imageAlignments)
+    ? (raw.imageAlignments as Record<string, PageAlignment>)
+    : {};
   const customOrdering = Array.isArray(raw.customOrdering)
     ? (raw.customOrdering as string[])
     : null;
@@ -309,6 +313,7 @@ export function migrateRawAlbumConfig(
       ...global,
       customAspectRatios,
       heightFactors,
+      imageAlignments,
       customOrdering,
       pageAlignments,
       cropPositions: sanitizeCropPositions(raw.cropPositions),
@@ -330,6 +335,7 @@ export function migrateRawAlbumConfig(
     ...global,
     customAspectRatios,
     heightFactors,
+    imageAlignments,
     customOrdering,
     pageAlignments,
     cropPositions: {},
