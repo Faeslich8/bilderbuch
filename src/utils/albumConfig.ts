@@ -153,6 +153,8 @@ export interface AlbumConfig extends GlobalConfig {
   customAspectRatios: Record<string, number>;
   /** Höhenfaktor je assetId für den Collage-Modus (Default 1). */
   heightFactors: Record<string, number>;
+  /** Ausrichtung eines einzelnen Fotos im freien Platz seiner Zeile. */
+  imageAlignments: Record<string, PageAlignment>;
   customOrdering: string[] | null;
   descriptionPositions: Record<string, Position>;
   pageAlignments: Record<number, PageAlignment>;
@@ -177,6 +179,8 @@ export interface AlbumConfigV2 extends GlobalConfig {
   customAspectRatios: Record<string, number>;
   /** Höhenfaktor je assetId für den Collage-Modus (Default 1). */
   heightFactors: Record<string, number>;
+  /** Ausrichtung eines einzelnen Fotos im freien Platz seiner Zeile. */
+  imageAlignments: Record<string, PageAlignment>;
   customOrdering: string[] | null;
   pageAlignments: Record<number, PageAlignment>;
   // NEU in V2:
@@ -400,6 +404,7 @@ export function saveAlbumConfig(
       layoutMode: config.layoutMode ?? "justified",
       customAspectRatios: config.customAspectRatios ?? {},
       heightFactors: config.heightFactors ?? {},
+      imageAlignments: config.imageAlignments ?? {},
       customOrdering: config.customOrdering ?? null,
       pageAlignments: config.pageAlignments ?? {},
       cropPositions: config.cropPositions ?? {},
