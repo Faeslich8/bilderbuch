@@ -27,6 +27,26 @@ server {
         limit_except GET PUT DELETE { deny all; }
     }
 
+    # Gebaute Assets tragen einen Inhalts-Hash im Dateinamen -> dauerhaft cachebar.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    # index.html und die Laufzeit-Konfig NIEMALS cachen: sonst zeigt der Browser
+    # nach einem Update weiter auf das alte (gehashte) JS-Bundle und neue
+    # Funktionen "fehlen", bis der Nutzer hart neu lädt.
+    location = /index.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        expires -1;
+        try_files $uri =404;
+    }
+    location = /config.js {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        expires -1;
+        try_files $uri =404;
+    }
+
     # SPA: clientseitige Routen auf index.html zurückfallen lassen.
     location / {
         try_files $uri $uri/ /index.html;
