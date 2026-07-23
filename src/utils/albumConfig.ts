@@ -158,6 +158,8 @@ export interface AlbumConfig extends GlobalConfig {
   customOrdering: string[] | null;
   descriptionPositions: Record<string, Position>;
   pageAlignments: Record<number, PageAlignment>;
+  /** Layout-Modus je logischer Seite (Override; sonst gilt layoutMode). */
+  pageLayoutModes: Record<number, "justified" | "collage">;
   /** Asset-IDs, die aus dem Buch ausgeschlossen sind (bleiben in Immich). */
   excludedAssetIds: string[];
   /** Bildausschnitt je assetId (object-position in Prozent). */
@@ -183,6 +185,8 @@ export interface AlbumConfigV2 extends GlobalConfig {
   imageAlignments: Record<string, PageAlignment>;
   customOrdering: string[] | null;
   pageAlignments: Record<number, PageAlignment>;
+  /** Layout-Modus je logischer Seite (Override; sonst gilt layoutMode). */
+  pageLayoutModes: Record<number, "justified" | "collage">;
   // NEU in V2:
   /** Nutzer-Elemente je STABILER Seiten-ID (siehe photoBoxToElement.computeStablePageId). */
   overlayElements: Record<string, PageElement[]>;
@@ -407,6 +411,7 @@ export function saveAlbumConfig(
       imageAlignments: config.imageAlignments ?? {},
       customOrdering: config.customOrdering ?? null,
       pageAlignments: config.pageAlignments ?? {},
+      pageLayoutModes: config.pageLayoutModes ?? {},
       cropPositions: config.cropPositions ?? {},
       blockerTexts: config.blockerTexts ?? {},
       imageCaptionTexts: config.imageCaptionTexts ?? {},
