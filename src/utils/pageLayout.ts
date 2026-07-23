@@ -68,6 +68,8 @@ export interface LayoutOptions {
   pageAlignments?: Map<number, PageAlignment>; // alignment per page number
   heightFactors?: Map<string, number>; // Collage: Höhenfaktor je Asset (>=2 = hohe Kachel)
   imageAlignments?: Map<string, PageAlignment>; // Ausrichtung einzelner Fotos in ihrer Zeile
+  layoutMode?: "justified" | "collage"; // Standard-Modus (für die Per-Seite-Engine)
+  pageLayoutModes?: Map<number, "justified" | "collage">; // Modus je logischer Seite
 }
 
 /**
@@ -464,6 +466,165 @@ export function calculateCollageLayout(
     return combinePagesSideBySide(pages, pageDimensions.width);
   }
   return pages;
+}
+
+// Ein einzelnes Band ab Index `start` bilden (Collage-Doppelband oder
+// justiertes Einzelband). `honorFactors` = Collage-Modus (hohe Kacheln).
+function buildOneBand(
+  tiles: CollageTile[],
+  start: number,
+  honorFactors: boolean,
+  contentWidth: number,
+  H1: number,
+  H2: number,
+  spacing: number,
+): { band: CollageBand; nextI: number } {
+  let i = start;
+  if (honorFactors && tiles[i].factor >= 2) {
+    const columns: CollageColumn[] = [{ tiles: [tiles[i]] }];
+    i++;
+    while (
+      i + 1 < tiles.length &&
+      bandNaturalWidth(columns, H2, spacing) < contentWidth
+    ) {
+      columns.push({ tiles: [tiles[i], tiles[i + 1]] });
+      i += 2;
+    }
+    const full = bandNaturalWidth(columns, H2, spacing) >= contentWidth;
+    return { band: { columns, double: true, full }, nextI: i };
+  }
+  const columns: CollageColumn[] = [];
+  let full = false;
+  while (i < tiles.length && !(honorFactors && tiles[i].factor >= 2)) {
+    columns.push({ tiles: [tiles[i]] });
+    i++;
+    if (bandNaturalWidth(columns, H1, spacing) >= contentWidth) {
+      full = true;
+      break;
+    }
+  }
+  return { band: { columns, double: false, full }, nextI: i };
+}
+
+// Die Fotos EINER logischen Seite in einem Modus neu anordnen (fester Foto-Satz,
+// keine Paginierung -> alle bleiben auf dieser Seite). Für Per-Seite-Overrides.
+function relayLogicalPage(
+  photos: PhotoBox[],
+  mode: "justified" | "collage",
+  contentWidth: number,
+  H1: number,
+  H2: number,
+  spacing: number,
+  margin: number,
+  customAspectRatios?: Map<string, number>,
+  heightFactors?: Map<string, number>,
+): PhotoBox[] {
+  const honorFactors = mode === "collage";
+  const tiles: CollageTile[] = photos.map((p) => ({
+    asset: p.asset,
+    aspect: tileAspect(p.asset, customAspectRatios),
+    factor: heightFactors?.get(p.asset.id) ?? 1,
+  }));
+  const out: PhotoBox[] = [];
+  let bandY = 0;
+  let i = 0;
+  while (i < tiles.length) {
+    const { band, nextI } = buildOneBand(
+      tiles,
+      i,
+      honorFactors,
+      contentWidth,
+      H1,
+      H2,
+      spacing,
+    );
+    let H = band.full
+      ? solveBandHeight(band.columns, contentWidth, spacing)
+      : band.double
+        ? H2
+        : H1;
+    H = Math.max(60, H);
+    let x = margin;
+    const topY = bandY + margin;
+    for (const col of band.columns) {
+      const w = colWidthAt(col, H, spacing);
+      let y = topY;
+      for (const t of col.tiles) {
+        const h = w / t.aspect;
+        out.push({ asset: t.asset, x, y, width: w, height: h });
+        y += h + spacing;
+      }
+      x += w + spacing;
+    }
+    bandY += H + spacing;
+    i = nextI;
+  }
+  return out;
+}
+
+/**
+ * Per-Seite-Layout OHNE das ganze Buch umzubrechen: Die Basis-Pagination kommt
+ * vom Standard-Layout (layoutMode) und bleibt damit exakt wie bisher; nur
+ * logische Seiten mit abweichendem Modus (pageLayoutModes) werden IN SICH neu
+ * angeordnet. Wird nur genutzt, wenn es Per-Seite-Overrides gibt.
+ */
+export function calculateBookLayoutPerPage(
+  assets: AssetResponseDto[],
+  options: LayoutOptions,
+): Page[] {
+  if (assets.length === 0) return [];
+  const { margin, rowHeight, spacing, customAspectRatios, heightFactors } =
+    options;
+  const defaultMode = options.layoutMode ?? "justified";
+
+  let pageDimensions: { width: number; height: number };
+  if (
+    options.pageSize === "CUSTOM" &&
+    options.customWidth &&
+    options.customHeight
+  ) {
+    pageDimensions = {
+      width: options.customWidth,
+      height: options.customHeight,
+    };
+  } else if (options.pageSize !== "CUSTOM") {
+    pageDimensions = PAGE_SIZES[options.pageSize][options.orientation];
+  } else {
+    pageDimensions = PAGE_SIZES.A4.portrait;
+  }
+  const contentWidth = pageDimensions.width - margin * 2;
+  const H1 = rowHeight;
+  const H2 = rowHeight * 2 + spacing;
+
+  // 1) Basis: logische Seiten im Standard-Modus (OHNE Zusammenlegen).
+  const baseOptions: LayoutOptions = { ...options, combinePages: false };
+  const logical =
+    defaultMode === "collage"
+      ? calculateCollageLayout(assets, baseOptions)
+      : calculatePageLayout(assets, baseOptions);
+
+  // 2) Nur Seiten mit abweichendem Modus in sich neu anordnen.
+  for (const page of logical) {
+    const mode = options.pageLayoutModes?.get(page.pageNumber) ?? defaultMode;
+    if (mode === defaultMode) continue;
+    page.photos = relayLogicalPage(
+      page.photos,
+      mode,
+      contentWidth,
+      H1,
+      H2,
+      spacing,
+      margin,
+      customAspectRatios,
+      heightFactors,
+    );
+  }
+
+  // 3) Doppelseiten wie üblich zusammenlegen.
+  if (options.combinePages) {
+    return combinePagesSideBySide(logical, pageDimensions.width);
+  }
+  return logical;
 }
 
 // Zwei aufeinanderfolgende Seiten zu einer Doppelseite zusammenfassen.

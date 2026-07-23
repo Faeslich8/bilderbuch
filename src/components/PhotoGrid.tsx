@@ -24,6 +24,7 @@ import {
 import {
   calculatePageLayout,
   calculateCollageLayout,
+  calculateBookLayoutPerPage,
   PAGE_SIZES,
   type PageAlignment,
 } from "../utils/pageLayout";
@@ -406,6 +407,18 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const [imageAlignments, setImageAlignments] = useState<
     Map<string, PageAlignment>
   >(() => new Map(Object.entries(initialConfig.imageAlignments)));
+  // Layout-Modus je logischer Seite (Override; sonst gilt layoutMode).
+  const [pageLayoutModes, setPageLayoutModes] = useState<
+    Map<number, "justified" | "collage">
+  >(
+    () =>
+      new Map(
+        Object.entries(initialConfig.pageLayoutModes).map(([k, v]) => [
+          Number(k),
+          v,
+        ]),
+      ),
+  );
 
   // Customizations
   const [customAspectRatios, setCustomAspectRatios] = useState<
@@ -607,6 +620,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       customOrdering,
       descriptionPositions: Object.fromEntries(descriptionPositions),
       pageAlignments: Object.fromEntries(pageAlignments),
+      pageLayoutModes: Object.fromEntries(pageLayoutModes),
       excludedAssetIds: Array.from(excludedAssetIds),
       cropPositions: Object.fromEntries(cropPositions),
       blockerTexts: Object.fromEntries(blockerTexts),
@@ -642,6 +656,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     customOrdering,
     descriptionPositions,
     pageAlignments,
+    pageLayoutModes,
     overlayElements,
     excludedAssetIds,
     cropPositions,
@@ -801,7 +816,6 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       }
       return next;
     });
-    if (layoutMode !== "collage") setLayoutMode("collage");
   };
 
   // Raster-Modus: Fotos einer Seite automatisch anordnen -> manuelle
@@ -813,6 +827,28 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     setCustomAspectRatios((prev) => {
       const next = new Map(prev);
       for (const id of ids) next.delete(id);
+      return next;
+    });
+  };
+
+  // Per-Seite-Modus: logische Seiten einer Doppelseite (bzw. die Einzelseite).
+  const spreadLogicalPages = (pageNumber: number): number[] =>
+    combinePages ? [pageNumber * 2 - 1, pageNumber * 2] : [pageNumber];
+  const spreadEffectiveMode = (
+    pageNumber: number,
+  ): "justified" | "collage" =>
+    pageLayoutModes.get(spreadLogicalPages(pageNumber)[0]) ?? layoutMode;
+  const toggleSpreadMode = (pageNumber: number) => {
+    const ns = spreadLogicalPages(pageNumber);
+    const target =
+      spreadEffectiveMode(pageNumber) === "collage" ? "justified" : "collage";
+    setPageLayoutModes((prev) => {
+      const next = new Map(prev);
+      for (const n of ns) {
+        // Entspricht der Ziel-Modus dem Standard -> Override entfernen.
+        if (target === layoutMode) next.delete(n);
+        else next.set(n, target);
+      }
       return next;
     });
   };
@@ -1374,7 +1410,16 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       pageAlignments,
       imageAlignments,
     };
-    // Collage-Modus: eigene Engine (justierte Bänder aus Spalten).
+    // Per-Seite-Overrides vorhanden -> seitenweise Engine (jede Seite ihr Modus).
+    if (pageLayoutModes.size > 0) {
+      return calculateBookLayoutPerPage(layoutAssets, {
+        ...layoutOptions,
+        heightFactors,
+        layoutMode,
+        pageLayoutModes,
+      });
+    }
+    // Collage-Modus (global): eigene Engine (justierte Bänder aus Spalten).
     if (layoutMode === "collage") {
       return calculateCollageLayout(layoutAssets, {
         ...layoutOptions,
@@ -1398,6 +1443,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     imageAlignments,
     layoutMode,
     heightFactors,
+    pageLayoutModes,
   ]);
 
   // Den globalen "Bild hier ablegen"-Hinweis zuverlässig zurücksetzen — bei JEDEM
@@ -3967,7 +4013,23 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     >
                       <Icon path={mdiFilePlusOutline} size={0.6} />
                     </button>
-                    {layoutMode === "collage" ? (
+                    <button
+                      onClick={() => toggleSpreadMode(page.pageNumber)}
+                      className={`px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 ${
+                        spreadEffectiveMode(page.pageNumber) === "collage"
+                          ? "bg-primary-500 text-white border-primary-500"
+                          : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                      }`}
+                      title="Diese Doppelseite: Raster oder Collage"
+                    >
+                      <Icon path={mdiViewGridOutline} size={0.6} />
+                      <span className="hidden sm:inline">
+                        {spreadEffectiveMode(page.pageNumber) === "collage"
+                          ? "Collage"
+                          : "Raster"}
+                      </span>
+                    </button>
+                    {spreadEffectiveMode(page.pageNumber) === "collage" ? (
                       <button
                         onClick={() => handleAutoCollagePage(page.photos)}
                         className="px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
@@ -4049,7 +4111,23 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       >
                         <Icon path={mdiFilePlusOutline} size={0.6} />
                       </button>
-                      {layoutMode === "collage" ? (
+                      <button
+                        onClick={() => toggleSpreadMode(page.pageNumber)}
+                        className={`px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 ${
+                          spreadEffectiveMode(page.pageNumber) === "collage"
+                            ? "bg-primary-500 text-white border-primary-500"
+                            : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                        }`}
+                        title="Diese Seite: Raster oder Collage"
+                      >
+                        <Icon path={mdiViewGridOutline} size={0.6} />
+                        <span className="hidden sm:inline">
+                          {spreadEffectiveMode(page.pageNumber) === "collage"
+                            ? "Collage"
+                            : "Raster"}
+                        </span>
+                      </button>
+                      {spreadEffectiveMode(page.pageNumber) === "collage" ? (
                         <button
                           onClick={() => handleAutoCollagePage(page.photos)}
                           className="px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
@@ -4714,7 +4792,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             schmalen Bildern um, statt abgeschnitten zu werden. */}
                         {!isCropping && (
                           <div className="absolute top-2 right-2 z-20 flex max-w-[calc(100%-1rem)] flex-wrap items-center justify-end gap-0.5 rounded-lg bg-stone-900/75 p-0.5 opacity-0 shadow backdrop-blur transition-opacity group-hover:opacity-100">
-                            {layoutMode === "collage" && (
+                            {spreadEffectiveMode(page.pageNumber) ===
+                              "collage" && (
                               <button
                                 className={`rounded px-1.5 py-1 text-sm leading-none text-white transition-colors hover:bg-white/20 ${
                                   (heightFactors.get(photoBox.asset.id) ?? 1) >= 2

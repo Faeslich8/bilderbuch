@@ -272,6 +272,7 @@ export function migrateRawAlbumConfig(
       imageAlignments: {},
       customOrdering: null,
       pageAlignments: {},
+      pageLayoutModes: {},
       cropPositions: {},
       blockerTexts: {},
       imageCaptionTexts: {},
@@ -302,6 +303,9 @@ export function migrateRawAlbumConfig(
   const pageAlignments = isPlainObject(raw.pageAlignments)
     ? (raw.pageAlignments as Record<number, PageAlignment>)
     : {};
+  const pageLayoutModes = isPlainObject(raw.pageLayoutModes)
+    ? (raw.pageLayoutModes as Record<number, "justified" | "collage">)
+    : {};
   const excludedAssetIds = Array.isArray(raw.excludedAssetIds)
     ? (raw.excludedAssetIds as string[])
     : [];
@@ -316,6 +320,7 @@ export function migrateRawAlbumConfig(
       imageAlignments,
       customOrdering,
       pageAlignments,
+      pageLayoutModes,
       cropPositions: sanitizeCropPositions(raw.cropPositions),
       blockerTexts: sanitizeStyledTextRecord(raw.blockerTexts),
       imageCaptionTexts: sanitizeStyledTextRecord(raw.imageCaptionTexts),
@@ -338,6 +343,7 @@ export function migrateRawAlbumConfig(
     imageAlignments,
     customOrdering,
     pageAlignments,
+    pageLayoutModes,
     cropPositions: {},
     blockerTexts: {},
     imageCaptionTexts: {},
