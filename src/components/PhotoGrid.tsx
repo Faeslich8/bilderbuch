@@ -4710,9 +4710,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           </div>
                         )}
 
-                        {/* Kompakte Foto-Werkzeugleiste (Icons) */}
+                        {/* Kompakte Foto-Werkzeugleiste (Icons). Bricht bei
+                            schmalen Bildern um, statt abgeschnitten zu werden. */}
                         {!isCropping && (
-                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 rounded-lg bg-stone-900/75 p-0.5 opacity-0 shadow backdrop-blur transition-opacity group-hover:opacity-100">
+                          <div className="absolute top-2 right-2 z-20 flex max-w-[calc(100%-1rem)] flex-wrap items-center justify-end gap-0.5 rounded-lg bg-stone-900/75 p-0.5 opacity-0 shadow backdrop-blur transition-opacity group-hover:opacity-100">
                             {layoutMode === "collage" && (
                               <button
                                 className={`rounded px-1.5 py-1 text-sm leading-none text-white transition-colors hover:bg-white/20 ${
