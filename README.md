@@ -1,61 +1,84 @@
-# BilderBuch
+<p align="center">
+  <img src="public/icon.png" alt="BilderBuch" width="128" height="128" />
+</p>
 
-> **BilderBuch** – Fotobücher für Immich. A fork of
+<h1 align="center">BilderBuch</h1>
+
+<p align="center">
+  Create print-ready <strong>photo books</strong> — from your
+  <a href="https://immich.app/">Immich</a> albums <em>or</em> your own uploaded photos.<br />
+  Self-hosted, privacy-first, with high-quality PDF export.
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#self-hosting-recommended">Self-hosting</a> ·
+  <a href="#using-bilderbuch">Usage</a> ·
+  <a href="#license">License</a>
+</p>
+
+> **BilderBuch** is a fork of
 > [ch1bo/immich-book](https://github.com/ch1bo/immich-book) by Sebastian Nagel,
-> substantially extended with additional editor features (design/blank spaces,
-> drawing, an insertable map, DIN formats, single/double-page view, a title page,
-> zero-input central connection and a shared cross-device editing store).
+> substantially extended: **local albums** (build books from your own uploads —
+> works even without Immich), a **collage / masonry mode** (switchable per page),
+> **per-image alignment**, design/blank spaces, drawing, an insertable map, DIN
+> formats, single/double-page view, a title page, zero-input central connection
+> and a shared cross-device editing store.
 > Licensed under AGPL-3.0 (see [LICENSE](LICENSE)); all modifications remain under
 > the same license. "Immich" is a trademark of the Immich project; BilderBuch is an
 > independent companion tool and not affiliated with or endorsed by Immich.
 
-Create beautiful photo books from your [Immich](https://immich.app/) albums.
-
-A web application that generates print-ready photo books from your Immich albums using the official Immich SDK.
-
 ## Why BilderBuch?
 
-Your photos are already organized in Immich albums. BilderBuch turns those curated collections into professional-quality photo books you can print or share as PDFs.
+Turn curated photo collections into professional-quality photo books you can print or share as PDFs — using photos from Immich or uploaded directly.
 
-- **Privacy-first**: Your photos stay on your server
-- **No subscriptions**: Free and open source
-- **Full control**: Customize every aspect of your photo book
-- **Print anywhere**: Export high-quality PDFs to any print service
+- **Privacy-first** — your photos stay on your own server
+- **Immich _or_ standalone** — build books from Immich albums, or from your own uploads (no Immich required)
+- **No subscriptions** — free and open source (AGPL-3.0)
+- **Print anywhere** — export high-quality, print-ready PDFs
 
-## Demo
+## Screenshots
 
-<!-- TODO: Add screenshots of BilderBuch here -->
+<!-- Add your own screenshots here. BilderBuch is self-hosted and works with your
+     private library, so please use photos you're happy to share publicly.
+     Drop images into docs/screenshots/ and reference them below, e.g.:
+     ![Album overview](docs/screenshots/overview.png)
+     ![Editor with collage page](docs/screenshots/collage.png)
+     ![PDF export](docs/screenshots/pdf.png) -->
 
-BilderBuch is meant to be self-hosted alongside your own Immich instance (see
-[Self-Hosting](#self-hosting-recommended)). The **original** project also offers a
-public demo with sample assets: [ch1bo.github.io/immich-book](https://ch1bo.github.io/immich-book)
-(note it predates the features added in this fork).
+> _Screenshots welcome!_ Because BilderBuch runs against your own (private)
+> library, this section is intentionally left for you to add screenshots of your
+> choosing — put images in [`docs/screenshots/`](docs/screenshots) and link them
+> here.
 
 ## Features
 
-### Connection & Browsing
+### Albums & Connection
 
-- Same-origin connection via the built-in `/api` proxy — no server URL to enter
-- **Zero-input for the whole network**: optional central API key (`IMMICH_API_KEY`) so every device connects automatically
+- **Immich albums** — browse and select from all your albums via a same-origin `/api` proxy (no server URL to enter)
+- **Local albums** — create books from your **own uploaded photos**; works **entirely without Immich** ("start without Immich"), rename/delete on the start page
+- **Zero-input for the whole network** — optional central API key (`IMMICH_API_KEY`) so every device connects automatically
 - **Shared editing state across devices** via a small central store (see below) — no more per-device divergence
-- Browse and select from all your albums, automatic reconnection to last used album
 
-### Layout & Customization
+### Layout
 
-- Justified layout using @immich/justified-layout-wasm
+- **Grid (justified) layout** using @immich/justified-layout-wasm
+- **Collage / masonry mode** — tiles of different heights, aspect-preserving; a tall tile spans rows while neighbours stack, bottoms aligned
+- **Switchable per page** — mix grid and collage spreads in one book (per-page toggle) without re-paginating the rest
 - Page formats: **DIN A3–A6** plus custom dimensions, portrait/landscape
 - **Single- and double-page (open-book) view**
-- Adjustable layout parameters (margin, row height, spacing)
-- Configurable page background; per-album configuration with global fallback
+- Adjustable layout parameters (margin, row height, spacing); configurable page background; per-album configuration with global fallback
 
 ### Photo Customization
 
-- Drag borders to customize aspect ratios per photo; drag & drop to reorder
+- Drag borders to change a photo's aspect ratio; drag & drop to reorder
+- **Per-image alignment** — align a single photo left/center/right within the free space of its row
+- In collage mode, mark a photo as a **tall tile** (spans rows)
 - **Crop / reposition** the visible section of a photo
 - **Detach a photo from the auto-layout** for free placement, resizing and rotation
 - Custom captions with text styling (size, font, color, background)
 - Cycle description positions (bottom, top, left, right); toggle dates/descriptions
-- Reset customizations individually or all at once, with indicators for customized photos
+- Reset per-photo customizations (shown on hover)
 
 ### Design Elements
 
@@ -225,37 +248,42 @@ registry credentials in Portainer, so it can be pulled.
 
 ### Using BilderBuch
 
-1. **Connect to Immich**
-   - Visit your [self-hosted](#self-hosting-recommended) (recommended) instance of `immich-book`
-   - If a central `IMMICH_API_KEY` is configured, you're connected automatically — nothing to enter
-   - Otherwise just enter your API key and click "Connect" (no server URL needed — it's same-origin)
+1. **Open the app**
+   - If a central `IMMICH_API_KEY` is configured, you're connected automatically — nothing to enter.
+   - Otherwise enter your Immich API key and click **Connect** (no server URL needed — it's same-origin).
+   - No Immich? Click **"Start without Immich"** to use local albums only.
 
-2. **Select an Album**
-   - Browse your albums
-   - Click on an album to open it
+2. **Pick or create an album**
+   - **Immich album** — click any album to open it.
+   - **Local album** — click **New album**, give it a name, then **Add photos** (drag & drop or file picker). An empty album shows a blank page to drop onto. Rename/delete local albums from their card on the start page.
 
-3. **Configure Page Layout**
-   - **Page Setup**: Adjust width, height, and combine pages option
-   - **Layout**: Configure margin, row height, and spacing
-   - **Presentation**: Toggle exclude videos, show dates, and show descriptions
+3. **Choose the page layout**
+   - **Single / Double** — single pages or an open-book spread.
+   - **Grid / Collage** (global default) — grid = justified rows; collage = tiles of varying heights (aspect-preserving).
+   - **Per page** — each spread has its own **Grid/Collage** toggle, so you can mix layouts without re-paginating the rest.
+   - **Settings (gear)** — page format (DIN A3–A6 or custom), margin, row height, spacing, page background, dates/descriptions, exclude videos.
 
-4. **Customize Individual Photos**
-   - **Drag borders** (left/right edges) to adjust aspect ratio
-   - **Drag & drop** photos to reorder them
-   - **Click descriptions** to cycle position (bottom → top → left → right)
-   - View customization indicators (blue = aspect ratio, green = reordered, purple = label position)
+4. **Arrange photos**
+   - **Drag & drop** to reorder; drag a photo's **left/right border** to change its aspect ratio.
+   - **Alignment** icon (per photo) — align it left/center/right in the free space of its row.
+   - **Auto** (per page, grid) resets manual sizes so the row redistributes evenly; **Auto‑Collage** (per page, collage) turns the page into a masonry.
+   - In **collage** mode, the **↕** icon makes a photo a **tall tile** (spans rows; neighbours stack, bottoms aligned).
+   - **Crop**, **caption**, or **detach for free placement** from each photo's hover toolbar.
 
-5. **Generate PDF**
-   - Click "Generate PDF" to preview
-   - Use the PDF viewer toolbar to download
-   - Click "Back to Edit" to make changes
+5. **Add design elements** (Insert menu)
+   - **Blank page** / **blank space** ("Leerraum"), **text**, **shape/emoji**, a **drawing zone**, or an **insertable map** showing the GPS coordinates of a page's photos.
+   - Add a **title page** with image, title/subtitle and portrait/landscape option.
+
+6. **Export**
+   - Click **Generate PDF** for a print-ready preview, download from the viewer toolbar, and **Back to editor** to keep editing.
+   - Your edits are saved automatically and shared across devices via the central store.
 
 ## Development
 
 Clone and install:
 
 ```bash
-git clone https://github.com/ch1bo/immich-book.git
+git clone https://github.com/Faeslich8/immich-book.git
 cd immich-book
 npm install
 ```
