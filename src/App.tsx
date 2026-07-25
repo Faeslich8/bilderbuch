@@ -176,20 +176,20 @@ function App() {
     <div className="min-h-screen bg-stone-50">
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-stone-200/70 bg-white/90 shadow-sm backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <img
                 src="/icon.png"
                 alt=""
                 aria-hidden="true"
-                className="h-10 w-10 rounded-xl"
+                className="h-14 w-14 rounded-2xl sm:h-16 sm:w-16"
               />
               <div>
-                <h1 className="text-2xl font-bold tracking-tight text-stone-900">
+                <h1 className="text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl">
                   BilderBuch
                 </h1>
-                <p className="text-sm text-stone-500">
+                <p className="text-sm text-stone-500 sm:text-base">
                   Fotobücher aus deinen Immich-Alben erstellen
                 </p>
               </div>
