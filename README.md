@@ -307,8 +307,13 @@ This means you are free to use, modify, and distribute this software, provided t
 
 See the [LICENSE](LICENSE) file for the full terms.
 
-Commercial licensing is available if you wish to use this software in a commercial product or service without the open source requirements of AGPL-3.0, contact us immich-book@ncoding.li
+> **Note on commercial licensing:** The *original* project (ch1bo/immich-book)
+> offers commercial licensing for its code via ncoding.li (immich-book@ncoding.li).
+> This BilderBuch fork adds further changes that are only available under AGPL-3.0
+> — a commercial use would require agreement from **both** the original author and
+> this fork's contributors. This fork does not, by itself, offer a commercial license.
 
 ---
 
-**Copyright © 2025 Sebastian Nagel**
+**Copyright © 2025 Sebastian Nagel** (original immich-book)
+**Modifications © 2025–2026 the BilderBuch contributors**, licensed under AGPL-3.0
