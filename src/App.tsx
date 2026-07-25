@@ -180,10 +180,10 @@ function App() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <img
-                src="/icon.svg"
+                src="/icon.png"
                 alt=""
                 aria-hidden="true"
-                className="h-10 w-10 rounded-xl shadow-sm"
+                className="h-10 w-10 rounded-xl"
               />
               <div>
                 <h1 className="text-2xl font-bold tracking-tight text-stone-900">
