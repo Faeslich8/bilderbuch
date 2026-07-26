@@ -1,4 +1,4 @@
-# Immich Book
+# BilderBuch
 
 > This is a fork of [ch1bo/immich-book](https://github.com/ch1bo/immich-book)
 > by Sebastian Nagel, with additional editor features. Licensed under AGPL-3.0
