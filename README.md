@@ -117,21 +117,17 @@ You will need:
 6. Click **Create**
 7. Copy the API key (you won't be able to see it again!)
 
-### Using the Hosted Version
+### Enable CORS on Your Immich Server
 
-> [!WARNING]
-> **Security Notice:** When using the hosted instance, your API key may be captured by whoever controls that domain. Only proceed if you trust the hosting provider! Anyone who controls the hosting can potentially access all your photos through your API key. For maximum security, consider self-hosting.
+> [!NOTE]
+> Only needed if you connect the browser **directly** to Immich on a **different origin** (i.e. you removed the same-origin `/api` proxy). The recommended [self-hosted setup](#self-hosting-recommended) below proxies same-origin and needs **no** CORS configuration.
 
-You may use the deployment built from this repository and published to Github Pages: [ch1bo.github.io/immich-book](https://ch1bo.github.io/immich-book)
-
-#### Enable CORS on Your Immich Server
-
-To use the hosted version, you need to allow CORS requests from the hosted domain. Add this to your Immich server's nginx configuration (inside the `server` block or `location /api` block):
+Allow CORS requests from **this app's own origin**. Add this to your Immich server's nginx configuration (inside the `server` block or `location /api` block):
 
 ```nginx
-# Allow CORS for the official hosted instance
+# Allow CORS for this app's origin
 if ($request_method = 'OPTIONS') {
-    add_header 'Access-Control-Allow-Origin' 'https://ch1bo.github.io' always;
+    add_header 'Access-Control-Allow-Origin' 'https://book.example.com' always;
     add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
     add_header 'Access-Control-Allow-Headers' 'x-api-key, Content-Type, Accept' always;
     add_header 'Access-Control-Max-Age' 1728000;
@@ -140,7 +136,7 @@ if ($request_method = 'OPTIONS') {
     return 204;
 }
 
-add_header 'Access-Control-Allow-Origin' 'https://ch1bo.github.io' always;
+add_header 'Access-Control-Allow-Origin' 'https://book.example.com' always;
 add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
 add_header 'Access-Control-Allow-Headers' 'x-api-key, Content-Type, Accept' always;
 ```
@@ -158,7 +154,7 @@ Self-hosting on the same domain as your Immich server is the most secure option 
 First, build the application:
 
 ```bash
-git clone https://github.com/ch1bo/immich-book.git
+git clone https://github.com/Faeslich8/immich-book.git
 cd immich-book
 npm install
 npm run build
