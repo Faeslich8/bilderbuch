@@ -8,23 +8,14 @@ Create beautiful photo books from your [Immich](https://immich.app/) albums.
 
 A web application that generates print-ready photo books from your Immich albums using the official Immich SDK.
 
-## Why Immich Book?
+## Why BilderBuch?
 
-Your photos are already organized in Immich albums. Immich Book turns those curated collections into professional-quality photo books you can print or share as PDFs.
+Your photos are already organized in Immich albums. BilderBuch turns those curated collections into professional-quality photo books you can print or share as PDFs.
 
 - **Privacy-first**: Your photos stay on your server
 - **No subscriptions**: Free and open source
 - **Full control**: Customize every aspect of your photo book
 - **Print anywhere**: Export high-quality PDFs to any print service
-
-## Demo
-
-<!-- TODO: Add screenshots/video demo here -->
-
-Try it with demo assets on the hosted setup: [ch1bo.github.io/immich-book](https://ch1bo.github.io/immich-book)
-
-> [!TIP]
-> The demo server access needs to be renewed every couple of hours. Should you get encouner errors, try reloading the page.
 
 ## Features
 
