@@ -1,5 +1,5 @@
 /**
- * Konfigurations-Persistenz für immich-book (Phase 1).
+ * Konfigurations-Persistenz für BilderBuch (Phase 1).
  *
  * Diese Datei zentralisiert das, was bisher inline in PhotoGrid.tsx lag
  * (GlobalConfig/AlbumConfig, DEFAULT_GLOBAL_CONFIG, loadGlobalConfig,

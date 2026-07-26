@@ -1,5 +1,5 @@
 {
-  description = "Immich Book - Create photo books from immich albums";
+  description = "BilderBuch - Create photo books from Immich albums or your own uploads";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

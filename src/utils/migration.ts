@@ -1,5 +1,5 @@
 /**
- * Schema-Migration für immich-book localStorage-Bücher (Phase 1).
+ * Schema-Migration für BilderBuch localStorage-Bücher (Phase 1).
  *
  * V1 (heutiges Format, ohne `schemaVersion`) -> V2 (Element-Modell).
  *

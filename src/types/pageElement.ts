@@ -1,5 +1,5 @@
 /**
- * Einheitliches Element-Datenmodell für freie Platzierung in immich-book.
+ * Einheitliches Element-Datenmodell für freie Platzierung in BilderBuch.
  *
  * Phase 1 der Überarbeitung. Diese Datei ist ein ENTWURF zur Freigabe:
  * Solange sie nirgends importiert wird, ändert sie nichts am bestehenden
