@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
           // rewrite: (path) => path.replace(/^\/api/, '/api'),
         },
         // Nur für lokale Tests: den zentralen Store (WebDAV) eines echten
-        // immich-book-Containers durchreichen (VITE_STORE_PROXY_TARGET).
+        // BilderBuch-Containers durchreichen (VITE_STORE_PROXY_TARGET).
         ...(env.VITE_STORE_PROXY_TARGET
           ? {
               "/store": {

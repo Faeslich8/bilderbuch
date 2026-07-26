@@ -109,7 +109,7 @@ You will need:
 1. Log into your Immich instance
 2. Go to **Account Settings** → **API Keys**
 3. Click **New API Key**
-4. Give it a descriptive name (e.g., "Immich Book")
+4. Give it a descriptive name (e.g., "BilderBuch")
 5. Select the required permissions:
    - `album.read`
    - `asset.read`
