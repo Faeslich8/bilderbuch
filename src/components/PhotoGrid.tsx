@@ -1952,7 +1952,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     <div
       key={extra.id}
       id={`bookblank-${extra.id}`}
-      className="relative mb-10 scroll-mt-40"
+      // isolate: eigener Stacking-Context, damit die freien Elemente (z-40+)
+      // nicht über die klebende Werkzeugleiste (z-30) hinausragen.
+      className="relative isolate mb-10 scroll-mt-40"
     >
       <div className="mb-2 flex flex-wrap items-center justify-center gap-1.5">
         <span className="px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
@@ -3885,7 +3887,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               <div
                 key={page.pageNumber}
                 id={`bookpage-${page.pageNumber}`}
-                className="relative scroll-mt-40"
+                // isolate: hält die z-Indizes der Foto-/Overlay-Ebene lokal,
+                // damit nichts über die klebende Werkzeugleiste ragt.
+                className="relative isolate scroll-mt-40"
               >
                 {/* Page number and alignment controls */}
                 {combinePages ? (

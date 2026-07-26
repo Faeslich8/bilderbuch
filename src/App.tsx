@@ -183,7 +183,7 @@ function App() {
                 src="/icon.png"
                 alt=""
                 aria-hidden="true"
-                className="h-14 w-14 rounded-2xl sm:h-16 sm:w-16"
+                className="h-28 w-28 rounded-2xl sm:h-32 sm:w-32"
               />
               <div>
                 <h1 className="text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl">
