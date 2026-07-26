@@ -481,6 +481,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     draggedIndex: number;
   } | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+  // Auf welcher Seite der Zielkachel eingefügt wird: false = links davor,
+  // true = rechts dahinter (folgt der Cursor-Hälfte).
+  const [dropAfter, setDropAfter] = useState(false);
 
   // Drag state for aspect ratio adjustment (horizontal edges = width,
   // vertical edges = height; beides ändert das Seitenverhältnis).
@@ -1048,15 +1051,24 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     setReorderDragState({ draggedAssetId: assetId, draggedIndex: index });
   };
 
+  // Liegt der Cursor in der rechten Hälfte der Zielkachel? Dann wird rechts
+  // dahinter eingefügt, sonst links davor – so verhält sich Drag & Drop wie erwartet.
+  const isDropAfter = (event: React.DragEvent): boolean => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return event.clientX - rect.left > rect.width / 2;
+  };
+
   const handleReorderDragOver = (index: number, event: React.DragEvent) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     setDropTargetIndex(index);
+    setDropAfter(isDropAfter(event));
   };
 
   const handleReorderDragEnd = () => {
     setReorderDragState(null);
     setDropTargetIndex(null);
+    setDropAfter(false);
   };
 
   const handleReorderDrop = (targetIndex: number, event: React.DragEvent) => {
@@ -1066,7 +1078,14 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
     const { draggedIndex } = reorderDragState;
 
-    if (draggedIndex === targetIndex) {
+    // Zielposition VOR dem Entfernen bestimmen: linke Hälfte -> vor die Zielkachel,
+    // rechte Hälfte -> dahinter.
+    let insertPos = isDropAfter(event) ? targetIndex + 1 : targetIndex;
+    // Beim Herausnehmen der gezogenen Kachel rutscht alles danach um 1 nach vorn.
+    if (draggedIndex < insertPos) insertPos -= 1;
+
+    // Kein Positionswechsel -> nichts tun (auch beim Ablegen auf sich selbst).
+    if (insertPos === draggedIndex) {
       handleReorderDragEnd();
       return;
     }
@@ -1078,7 +1097,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     // Remove from old position
     const [removed] = newOrder.splice(draggedIndex, 1);
     // Insert at new position
-    newOrder.splice(targetIndex, 0, removed);
+    newOrder.splice(insertPos, 0, removed);
 
     setCustomOrdering(newOrder);
     handleReorderDragEnd();
@@ -4263,7 +4282,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             onDrop={(e) => handleReorderDrop(globalIndex, e)}
                           >
                             {isDropTarget && reorderDragState && (
-                              <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-lg z-40" />
+                              <div
+                                className={`absolute top-0 bottom-0 w-1 bg-green-500 shadow-lg z-40 ${dropAfter ? "right-0" : "left-0"}`}
+                              />
                             )}
                             <div className="relative h-full w-full overflow-hidden rounded border border-stone-300 bg-stone-100">
                               {geoPts.length > 0 ? (
@@ -4384,7 +4405,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           }}
                         >
                           {isDropTarget && reorderDragState && (
-                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-lg z-10" />
+                            <div
+                            className={`absolute top-0 bottom-0 w-1 bg-green-500 shadow-lg z-10 ${dropAfter ? "right-0" : "left-0"}`}
+                          />
                           )}
                           <div
                             className={`relative w-full h-full overflow-hidden border-2 border-dashed flex items-center justify-center p-3 text-center ${
@@ -4580,7 +4603,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       >
                         {/* Drop indicator - shown on left edge when hovering during drag */}
                         {isDropTarget && reorderDragState && (
-                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-lg z-10" />
+                          <div
+                            className={`absolute top-0 bottom-0 w-1 bg-green-500 shadow-lg z-10 ${dropAfter ? "right-0" : "left-0"}`}
+                          />
                         )}
 
                         <WebElement
