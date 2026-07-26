@@ -11,12 +11,12 @@
   "description": "Create beautiful photo books from your Immich albums",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Faeslich8/immich-book.git"
+    "url": "https://github.com/Faeslich8/bilderbuch.git"
   },
   "bugs": {
-    "url": "https://github.com/Faeslich8/immich-book/issues"
+    "url": "https://github.com/Faeslich8/bilderbuch/issues"
   },
-  "homepage": "https://github.com/Faeslich8/immich-book",
+  "homepage": "https://github.com/Faeslich8/bilderbuch",
   "scripts": {
     "start": "vite",
     "build": "vite build",
