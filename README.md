@@ -154,8 +154,8 @@ Self-hosting on the same domain as your Immich server is the most secure option 
 First, build the application:
 
 ```bash
-git clone https://github.com/Faeslich8/immich-book.git
-cd immich-book
+git clone https://github.com/Faeslich8/bilderbuch.git
+cd bilderbuch
 npm install
 npm run build
 ```
@@ -168,7 +168,7 @@ Configure nginx (or your reverse proxy):
 
 ```nginx
 location /book/ {
-    alias /path/to/immich-book/dist/;
+    alias /path/to/bilderbuch/dist/;
     try_files $uri $uri/ /book/index.html;
 }
 ```
@@ -184,7 +184,7 @@ Configure nginx (or your reverse proxy):
 ```nginx
 server {
     server_name book.photos.example.com;
-    root /path/to/immich-book/dist;
+    root /path/to/bilderbuch/dist;
     try_files $uri $uri/ /index.html;
 
     # Add SSL configuration as needed
@@ -229,10 +229,10 @@ app just works per-device as before. Conflicts resolve last-write-wins — fine 
 setup. Keep the `immichbook-store` volume to preserve books across redeploys.
 
 **Pre-built image (Portainer web editor):** pushes to `main` build and publish the
-image to `ghcr.io/<owner>/immich-book:latest` via `.github/workflows/docker-image.yml`.
+image to `ghcr.io/<owner>/bilderbuch:latest` via `.github/workflows/docker-image.yml`.
 You can then deploy without any build context — paste `portainer-stack.yml` into
 Portainer's stack editor (or any compose that uses
-`image: ghcr.io/<owner>/immich-book:latest`), adjusting `IMMICH_URL`, `IMMICH_API_KEY`
+`image: ghcr.io/<owner>/bilderbuch:latest`), adjusting `IMMICH_URL`, `IMMICH_API_KEY`
 and the network name to match your setup. Make the package public, or add ghcr.io
 registry credentials in Portainer, so it can be pulled.
 
@@ -279,8 +279,8 @@ registry credentials in Portainer, so it can be pulled.
 Clone and install:
 
 ```bash
-git clone https://github.com/Faeslich8/immich-book.git
-cd immich-book
+git clone https://github.com/Faeslich8/bilderbuch.git
+cd bilderbuch
 npm install
 ```
 

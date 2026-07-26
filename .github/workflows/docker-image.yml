@@ -27,7 +27,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          # Lowercased automatically -> ghcr.io/<owner>/immich-book
+          # Lowercased automatically -> ghcr.io/<owner>/bilderbuch
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest

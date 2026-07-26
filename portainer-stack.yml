@@ -15,7 +15,7 @@
 # Anmeldung hinterlegen (Username = GitHub-Name, Passwort = PAT mit read:packages).
 services:
   immich-book:
-    image: ghcr.io/faeslich8/immich-book:latest
+    image: ghcr.io/faeslich8/bilderbuch:latest
     ports:
       - "8080:80"
     environment:
