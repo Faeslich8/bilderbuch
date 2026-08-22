@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import {
   getAlbumInfo,
   getAllAlbums,
+  searchAssets,
+  AssetTypeEnum,
   type AlbumResponseDto,
   type AssetResponseDto,
 } from "@immich/sdk";
@@ -749,24 +751,71 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     }
   };
 
-  // Lokales Album: Fotos aus einem Immich-Album übernehmen. Die Bilder werden
-  // in den Store kopiert, sind danach also unabhängig von Immich.
+  // Lokales Album: Fotos aus Immich übernehmen. Die Bilder werden in den Store
+  // kopiert, sind danach also unabhängig von Immich.
+  // Zwei Quellen: Fotos, die in KEINEM Immich-Album liegen (Standard – genau
+  // die findet man dort sonst schwer wieder), oder gezielt aus einem Album.
   // Nur möglich, wenn eine Immich-Verbindung besteht (im Ohne-Immich-Modus ist
   // der Schlüssel leer).
   const immichAvailable = immichConfig.apiKey.trim().length > 0;
+  const IMMICH_PAGE_SIZE = 120;
   const [showImmichImport, setShowImmichImport] = useState(false);
+  const [immichMode, setImmichMode] = useState<"unassigned" | "album">(
+    "unassigned",
+  );
   const [immichAlbums, setImmichAlbums] = useState<AlbumResponseDto[] | null>(
     null,
   );
   const [immichSource, setImmichSource] = useState<AlbumResponseDto | null>(
     null,
   );
+  // Fotos ohne Album (seitenweise nachgeladen).
+  const [immichLoose, setImmichLoose] = useState<AssetResponseDto[]>([]);
+  const [immichLoosePage, setImmichLoosePage] = useState(1);
+  const [immichLooseMore, setImmichLooseMore] = useState(false);
   const [immichPicked, setImmichPicked] = useState<Set<string>>(new Set());
   const [immichBusy, setImmichBusy] = useState(false);
   const [immichError, setImmichError] = useState<string | null>(null);
 
+  /** Fotos laden, die in keinem Immich-Album liegen. `append` hängt die nächste Seite an. */
+  const loadLooseAssets = async (append = false) => {
+    try {
+      setImmichBusy(true);
+      setImmichError(null);
+      const page = append ? immichLoosePage + 1 : 1;
+      const res = await searchAssets({
+        metadataSearchDto: {
+          isNotInAlbum: true,
+          type: AssetTypeEnum.Image,
+          withExif: true,
+          page,
+          size: IMMICH_PAGE_SIZE,
+        },
+      });
+      const items = res.assets.items ?? [];
+      setImmichLoose((prev) => (append ? [...prev, ...items] : items));
+      setImmichLoosePage(page);
+      setImmichLooseMore(!!res.assets.nextPage);
+    } catch (e) {
+      console.error("Fotos ohne Album konnten nicht geladen werden:", e);
+      setImmichError("Fotos ohne Album konnten nicht geladen werden.");
+    } finally {
+      setImmichBusy(false);
+    }
+  };
+
   const openImmichImport = async () => {
     setShowImmichImport(true);
+    setImmichMode("unassigned");
+    setImmichSource(null);
+    setImmichPicked(new Set());
+    setImmichError(null);
+    if (immichLoose.length === 0) await loadLooseAssets(false);
+  };
+
+  /** Auf die Album-Auswahl wechseln (Albenliste einmalig laden). */
+  const openImmichAlbumMode = async () => {
+    setImmichMode("album");
     setImmichSource(null);
     setImmichPicked(new Set());
     setImmichError(null);
@@ -804,13 +853,15 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     }
   };
 
-  const immichSourceAssets = (immichSource?.assets ?? []).filter(
-    (a) => a.type === "IMAGE",
-  );
+  /** Die aktuell zur Auswahl stehenden Fotos (je nach Quelle). */
+  const immichPickable: AssetResponseDto[] =
+    immichMode === "unassigned"
+      ? immichLoose
+      : (immichSource?.assets ?? []).filter((a) => a.type === "IMAGE");
 
   const handleImportFromImmich = async () => {
     if (!isLocal || immichPicked.size === 0) return;
-    const picked = immichSourceAssets.filter((a) => immichPicked.has(a.id));
+    const picked = immichPickable.filter((a) => immichPicked.has(a.id));
     setIsUploadingLocal(true);
     setLocalUploadProgress({ done: 0, total: picked.length });
     try {
@@ -830,6 +881,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       );
       setAssets(localAlbumAssets(updated));
       if (added > 0) {
+        // Übernommene Fotos aus der Auswahlliste entfernen: Sie liegen jetzt im
+        // lokalen Album, die Immich-Liste "ohne Album" bleibt so aktuell.
+        const importedIds = new Set(picked.map((a) => a.id));
+        setImmichLoose((prev) => prev.filter((a) => !importedIds.has(a.id)));
         setShowImmichImport(false);
         setImmichPicked(new Set());
       }
@@ -3016,14 +3071,16 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
       {showImmichImport && (
         <div className="mb-6 rounded border border-stone-300 bg-stone-50 p-3">
-          <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-sm font-semibold text-stone-700">
-              {immichSource
-                ? `Aus Immich übernehmen — ${immichSource.albumName}`
-                : "Aus Immich übernehmen — Album wählen"}
+              {immichMode === "unassigned"
+                ? "Aus Immich übernehmen — Fotos ohne Album"
+                : immichSource
+                  ? `Aus Immich übernehmen — ${immichSource.albumName}`
+                  : "Aus Immich übernehmen — Album wählen"}
             </h3>
             <div className="flex items-center gap-3">
-              {immichSource && (
+              {immichMode === "album" && immichSource && (
                 <button
                   onClick={() => {
                     setImmichSource(null);
@@ -3043,18 +3100,50 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             </div>
           </div>
 
+          {/* Quelle: Fotos ohne Album (Standard) oder gezielt aus einem Album. */}
+          <div className="mb-3 inline-flex items-center rounded-lg border border-stone-300 bg-white p-0.5 shadow-sm">
+            <button
+              onClick={() => {
+                setImmichMode("unassigned");
+                setImmichSource(null);
+                setImmichPicked(new Set());
+                setImmichError(null);
+                if (immichLoose.length === 0) loadLooseAssets(false);
+              }}
+              className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                immichMode === "unassigned"
+                  ? "bg-primary-600 text-white"
+                  : "text-stone-600 hover:bg-stone-50"
+              }`}
+              title="Fotos, die in keinem Immich-Album liegen"
+            >
+              Ohne Album
+            </button>
+            <button
+              onClick={openImmichAlbumMode}
+              className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                immichMode === "album"
+                  ? "bg-primary-600 text-white"
+                  : "text-stone-600 hover:bg-stone-50"
+              }`}
+              title="Fotos aus einem bestimmten Immich-Album"
+            >
+              Aus Album
+            </button>
+          </div>
+
           {immichError && (
             <p className="mb-2 rounded bg-red-50 px-2 py-1 text-xs text-red-700">
               {immichError}
             </p>
           )}
 
-          {immichBusy && (
+          {immichBusy && immichPickable.length === 0 && (
             <p className="py-4 text-center text-sm text-stone-500">Lädt…</p>
           )}
 
-          {/* Schritt 1: Immich-Album auswählen */}
-          {!immichBusy && !immichSource && (
+          {/* Album-Modus, Schritt 1: Album auswählen */}
+          {immichMode === "album" && !immichSource && !immichBusy && (
             <div className="flex max-h-64 flex-wrap gap-2 overflow-y-auto">
               {(immichAlbums ?? []).length === 0 ? (
                 <p className="text-sm text-stone-500">
@@ -3077,26 +3166,29 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             </div>
           )}
 
-          {/* Schritt 2: Fotos auswählen */}
-          {!immichBusy && immichSource && (
+          {/* Fotoauswahl — gilt für beide Quellen. */}
+          {(immichMode === "unassigned" || immichSource) && (
             <>
               <div className="mb-2 flex flex-wrap items-center gap-3">
                 <button
                   onClick={() =>
                     setImmichPicked(
-                      immichPicked.size === immichSourceAssets.length
+                      immichPicked.size === immichPickable.length
                         ? new Set()
-                        : new Set(immichSourceAssets.map((a) => a.id)),
+                        : new Set(immichPickable.map((a) => a.id)),
                     )
                   }
-                  className="text-xs text-primary-700 underline-offset-2 hover:underline"
+                  disabled={immichPickable.length === 0}
+                  className="text-xs text-primary-700 underline-offset-2 hover:underline disabled:opacity-50"
                 >
-                  {immichPicked.size === immichSourceAssets.length
+                  {immichPicked.size === immichPickable.length &&
+                  immichPickable.length > 0
                     ? "Auswahl aufheben"
                     : "Alle auswählen"}
                 </button>
                 <span className="text-xs text-stone-500">
-                  {immichPicked.size} von {immichSourceAssets.length} gewählt
+                  {immichPicked.size} von {immichPickable.length} gewählt
+                  {immichMode === "unassigned" && immichLooseMore && " (weitere vorhanden)"}
                 </span>
                 <button
                   onClick={handleImportFromImmich}
@@ -3108,42 +3200,63 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     : `${immichPicked.size} Foto(s) übernehmen`}
                 </button>
               </div>
-              <div className="flex max-h-64 flex-wrap gap-3 overflow-y-auto">
-                {immichSourceAssets.map((asset) => {
-                  const picked = immichPicked.has(asset.id);
-                  return (
-                    <button
-                      key={asset.id}
-                      onClick={() =>
-                        setImmichPicked((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(asset.id)) next.delete(asset.id);
-                          else next.add(asset.id);
-                          return next;
-                        })
-                      }
-                      className={`relative h-24 w-24 overflow-hidden rounded border transition ${
-                        picked
-                          ? "border-primary-500 ring-2 ring-primary-500"
-                          : "border-stone-300 hover:ring-2 hover:ring-primary-300"
-                      }`}
-                      title={asset.originalFileName}
-                    >
-                      <img
-                        src={`${immichConfig.baseUrl}/assets/${asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`}
-                        alt={asset.originalFileName}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                      {picked && (
-                        <span className="absolute right-1 top-1 rounded-full bg-primary-600 px-1.5 text-xs font-bold text-white">
-                          ✓
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+
+              {immichPickable.length === 0 && !immichBusy ? (
+                <p className="py-4 text-center text-sm text-stone-500">
+                  {immichMode === "unassigned"
+                    ? "Alle Fotos in Immich liegen bereits in einem Album."
+                    : "Dieses Album enthält keine Fotos."}
+                </p>
+              ) : (
+                <div className="flex max-h-64 flex-wrap gap-3 overflow-y-auto">
+                  {immichPickable.map((asset) => {
+                    const picked = immichPicked.has(asset.id);
+                    return (
+                      <button
+                        key={asset.id}
+                        onClick={() =>
+                          setImmichPicked((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(asset.id)) next.delete(asset.id);
+                            else next.add(asset.id);
+                            return next;
+                          })
+                        }
+                        className={`relative h-24 w-24 overflow-hidden rounded border transition ${
+                          picked
+                            ? "border-primary-500 ring-2 ring-primary-500"
+                            : "border-stone-300 hover:ring-2 hover:ring-primary-300"
+                        }`}
+                        title={asset.originalFileName}
+                      >
+                        <img
+                          src={`${immichConfig.baseUrl}/assets/${asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`}
+                          alt={asset.originalFileName}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                        {picked && (
+                          <span className="absolute right-1 top-1 rounded-full bg-primary-600 px-1.5 text-xs font-bold text-white">
+                            ✓
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {immichMode === "unassigned" && immichLooseMore && (
+                <div className="mt-2 text-center">
+                  <button
+                    onClick={() => loadLooseAssets(true)}
+                    disabled={immichBusy}
+                    className="rounded border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm transition-colors hover:bg-stone-50 disabled:opacity-50"
+                  >
+                    {immichBusy ? "Lädt…" : "Mehr laden"}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
