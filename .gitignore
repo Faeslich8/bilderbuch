@@ -4,3 +4,8 @@
 /.claude/
 *.local
 .env
+# Portable-EXE: Build-Artefakte und generierte Assets (werden erzeugt, nicht versioniert)
+/portable/build/
+/portable/assets.generated.mjs
+/portable/bilderbuch.config.json
+/portable/bilderbuch-daten/

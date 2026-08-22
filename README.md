@@ -242,6 +242,27 @@ registry credentials in Portainer, so it can be pulled.
 > then you must **allow CORS** for this app's origin on your Immich server, see
 > [Enable CORS](#enable-cors-on-your-immich-server).
 
+#### Option 4: Portable Windows executable (no install)
+
+Prefer running BilderBuch on a single PC without Docker? Build a **single
+portable `bilderbuch.exe`** — no installer, no Node required on the target
+machine, no registry entries; it even runs from a USB stick:
+
+```bash
+npm run build:exe
+```
+
+The result is `portable/build/bilderbuch.exe` (~95 MB, mostly the embedded
+Node.js runtime). Double-click it: a console window shows the address, the
+default browser opens automatically, and a `bilderbuch-daten/` folder next to
+the executable holds all albums, books and uploaded photos.
+
+It ships the **same same-origin `/api` proxy** as the Docker image, so Immich
+still needs no CORS configuration. Configure it with an optional
+`bilderbuch.config.json` next to the executable — or run it without any config
+for local albums only. See [`portable/README.md`](portable/README.md) for all
+options and the security note about exposing it to the network.
+
 ### Using BilderBuch
 
 1. **Open the app**
