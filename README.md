@@ -7,10 +7,12 @@
 <p align="center">
   Create print-ready <strong>photo books</strong> — from your
   <a href="https://immich.app/">Immich</a> albums <em>or</em> your own uploaded photos.<br />
-  Self-hosted, privacy-first, with high-quality PDF export.
+  Self-hosted, privacy-first, with high-quality PDF export.<br />
+  Runs as a <strong>portable Windows app</strong> — or via Docker for your whole network.
 </p>
 
 <p align="center">
+  <a href="#download">Download</a> ·
   <a href="#features">Features</a> ·
   <a href="#self-hosting-recommended">Self-hosting</a> ·
   <a href="#using-bilderbuch">Usage</a> ·
@@ -27,6 +29,32 @@
 > Licensed under AGPL-3.0 (see [LICENSE](LICENSE)); all modifications remain under
 > the same license. "Immich" is a trademark of the Immich project; BilderBuch is an
 > independent companion tool and not affiliated with or endorsed by Immich.
+
+## Download
+
+### Windows — portable, no installation
+
+**[⬇ Download `bilderbuch.exe`](https://github.com/Faeslich8/bilderbuch/releases/latest/download/bilderbuch.exe)**  ·  [all releases](https://github.com/Faeslich8/bilderbuch/releases)
+
+One file, double-click, done — no installer, no Docker, no Node.js required, no
+registry entries. It even runs from a USB stick. A console window shows the
+address and your default browser opens automatically.
+
+- Works **without Immich** right away (local albums from your own uploads).
+- To connect Immich, drop a `bilderbuch.config.json` next to the executable —
+  see [`portable/README.md`](portable/README.md). It ships the same same-origin
+  `/api` proxy as the Docker image, so **Immich needs no CORS configuration**.
+- All albums, books and photos live in a `bilderbuch-daten/` folder next to the
+  executable — back that up and your books are safe.
+
+> The executable is unsigned, so Windows SmartScreen shows an "unknown publisher"
+> prompt on first launch (*More info → Run anyway*). By default it listens on
+> `127.0.0.1` only.
+
+### Server / network use
+
+For always-on use where **every device** shares the same books, run the Docker
+image instead — see [Self-hosting](#self-hosting-recommended).
 
 ## Why BilderBuch?
 
@@ -244,24 +272,21 @@ registry credentials in Portainer, so it can be pulled.
 
 #### Option 4: Portable Windows executable (no install)
 
-Prefer running BilderBuch on a single PC without Docker? Build a **single
-portable `bilderbuch.exe`** — no installer, no Node required on the target
-machine, no registry entries; it even runs from a USB stick:
+A ready-made `bilderbuch.exe` is available under
+[Download](#download) — nothing to build.
+
+To build it yourself instead:
 
 ```bash
 npm run build:exe
 ```
 
 The result is `portable/build/bilderbuch.exe` (~95 MB, mostly the embedded
-Node.js runtime). Double-click it: a console window shows the address, the
-default browser opens automatically, and a `bilderbuch-daten/` folder next to
-the executable holds all albums, books and uploaded photos.
-
-It ships the **same same-origin `/api` proxy** as the Docker image, so Immich
-still needs no CORS configuration. Configure it with an optional
-`bilderbuch.config.json` next to the executable — or run it without any config
-for local albums only. See [`portable/README.md`](portable/README.md) for all
-options and the security note about exposing it to the network.
+Node.js runtime that makes it run without Node installed). The build embeds the
+UI into the executable and injects it into a copy of `node.exe` using Node's
+single-executable support. See [`portable/README.md`](portable/README.md) for
+configuration, the build steps in detail, and the security note about exposing
+it to the network.
 
 ### Using BilderBuch
 
