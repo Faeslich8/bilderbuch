@@ -319,3 +319,102 @@ export async function removePhotoFromLocalAlbum(
   await saveLocalAlbum(album);
   return album;
 }
+
+/* ------------------------------------------------------------------ */
+/* Import aus Immich                                                    */
+/* ------------------------------------------------------------------ */
+
+/** Minimale Beschreibung eines Immich-Fotos für den Import. */
+export interface ImmichAssetRef {
+  id: string;
+  fileName?: string;
+  createdAt?: string;
+}
+
+/**
+ * Übernimmt einen bereits geladenen Bild-Blob als Album-Foto-Datei.
+ * Ein JPEG in passender Größe wird UNVERÄNDERT gespeichert (keine erneute
+ * Codierung = kein Qualitätsverlust); alles andere wird über das Canvas
+ * herunterskaliert und nach JPEG gewandelt.
+ */
+async function blobToStoredJpeg(
+  blob: Blob,
+  maxEdge = 2400,
+  quality = 0.85,
+): Promise<{ blob: Blob; width: number; height: number } | null> {
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("Bild konnte nicht gelesen werden"));
+      i.src = url;
+    });
+    const longEdge = Math.max(img.width, img.height);
+    if (blob.type === "image/jpeg" && longEdge <= maxEdge) {
+      return { blob, width: img.width, height: img.height };
+    }
+    const scale = Math.min(1, maxEdge / longEdge);
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, w, h);
+    const out = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), "image/jpeg", quality),
+    );
+    if (!out) return null;
+    return { blob: out, width: w, height: h };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * Kopiert Fotos aus einem Immich-Album in ein lokales Album: Das Bild wird von
+ * Immich geladen und als eigene Datei im Store abgelegt. Danach ist das Foto
+ * ein vollwertiges lokales Album-Foto – unabhängig davon, ob Immich später noch
+ * erreichbar ist oder das Foto dort gelöscht wird.
+ *
+ * `imageUrlFor` liefert die (same-origin) Bild-URL zu einer Immich-Asset-Id;
+ * so bleibt dieses Modul frei von Verbindungs-/Schlüssel-Details.
+ */
+export async function addImmichAssetsToLocalAlbum(
+  album: LocalAlbum,
+  assets: ImmichAssetRef[],
+  imageUrlFor: (assetId: string) => string,
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ album: LocalAlbum; added: number; failed: number }> {
+  let done = 0;
+  let added = 0;
+  let failed = 0;
+  for (const asset of assets) {
+    try {
+      const res = await fetch(imageUrlFor(asset.id));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const stored = await blobToStoredJpeg(await res.blob());
+      if (!stored) throw new Error("Bild nicht verarbeitbar");
+      const mediaId = randomId("img").replace(/[^a-zA-Z0-9-]/g, "");
+      await putRemoteMedia(album.id, mediaId, stored.blob);
+      album.photos.push({
+        id: mediaId,
+        fileName: asset.fileName || `${asset.id}.jpg`,
+        width: stored.width,
+        height: stored.height,
+        createdAt: asset.createdAt || new Date().toISOString(),
+      });
+      added += 1;
+    } catch (e) {
+      failed += 1;
+      console.error("Immich-Import fehlgeschlagen:", asset.id, e);
+    } finally {
+      done += 1;
+      onProgress?.(done, assets.length);
+    }
+  }
+  if (added > 0) await saveLocalAlbum(album);
+  return { album, added, failed };
+}
