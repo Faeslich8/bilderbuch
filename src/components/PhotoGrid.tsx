@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, Fragment } from "react";
 import { createPortal } from "react-dom";
 import {
   getAlbumInfo,
+  getAllAlbums,
   type AlbumResponseDto,
   type AssetResponseDto,
 } from "@immich/sdk";
@@ -65,6 +66,7 @@ import {
   addPhotosToLocalAlbum,
   addDataUrlToLocalAlbum,
   localAlbumAssets,
+  addImmichAssetsToLocalAlbum,
 } from "../utils/localAlbum";
 import {
   createEmojiElement,
@@ -107,6 +109,7 @@ import {
   mdiFileOutline,
   mdiBookOpenOutline,
   mdiImagePlusOutline,
+  mdiImageMultipleOutline,
   mdiFormatText,
   mdiShapePlusOutline,
   mdiEmoticonOutline,
@@ -733,6 +736,104 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       setAssets(localAlbumAssets(updated));
     } catch (e) {
       console.error("Upload lokaler Fotos fehlgeschlagen:", e);
+    } finally {
+      setIsUploadingLocal(false);
+      setLocalUploadProgress(null);
+    }
+  };
+
+  // Lokales Album: Fotos aus einem Immich-Album übernehmen. Die Bilder werden
+  // in den Store kopiert, sind danach also unabhängig von Immich.
+  // Nur möglich, wenn eine Immich-Verbindung besteht (im Ohne-Immich-Modus ist
+  // der Schlüssel leer).
+  const immichAvailable = immichConfig.apiKey.trim().length > 0;
+  const [showImmichImport, setShowImmichImport] = useState(false);
+  const [immichAlbums, setImmichAlbums] = useState<AlbumResponseDto[] | null>(
+    null,
+  );
+  const [immichSource, setImmichSource] = useState<AlbumResponseDto | null>(
+    null,
+  );
+  const [immichPicked, setImmichPicked] = useState<Set<string>>(new Set());
+  const [immichBusy, setImmichBusy] = useState(false);
+  const [immichError, setImmichError] = useState<string | null>(null);
+
+  const openImmichImport = async () => {
+    setShowImmichImport(true);
+    setImmichSource(null);
+    setImmichPicked(new Set());
+    setImmichError(null);
+    if (immichAlbums) return;
+    try {
+      setImmichBusy(true);
+      const [owned, shared] = await Promise.all([
+        getAllAlbums({}),
+        getAllAlbums({ shared: true }),
+      ]);
+      const unique = Array.from(
+        new Map([...owned, ...shared].map((a) => [a.id, a])).values(),
+      ).sort((a, b) => a.albumName.localeCompare(b.albumName));
+      setImmichAlbums(unique);
+    } catch (e) {
+      console.error("Immich-Alben konnten nicht geladen werden:", e);
+      setImmichError("Immich-Alben konnten nicht geladen werden.");
+    } finally {
+      setImmichBusy(false);
+    }
+  };
+
+  const openImmichSource = async (albumId: string) => {
+    try {
+      setImmichBusy(true);
+      setImmichError(null);
+      const info = await getAlbumInfo({ id: albumId });
+      setImmichSource(info);
+      setImmichPicked(new Set());
+    } catch (e) {
+      console.error("Immich-Album konnte nicht geladen werden:", e);
+      setImmichError("Album konnte nicht geladen werden.");
+    } finally {
+      setImmichBusy(false);
+    }
+  };
+
+  const immichSourceAssets = (immichSource?.assets ?? []).filter(
+    (a) => a.type === "IMAGE",
+  );
+
+  const handleImportFromImmich = async () => {
+    if (!isLocal || immichPicked.size === 0) return;
+    const picked = immichSourceAssets.filter((a) => immichPicked.has(a.id));
+    setIsUploadingLocal(true);
+    setLocalUploadProgress({ done: 0, total: picked.length });
+    try {
+      const current = await loadLocalAlbum(album.id);
+      if (!current) return;
+      const { album: updated, added, failed } = await addImmichAssetsToLocalAlbum(
+        current,
+        picked.map((a) => ({
+          id: a.id,
+          fileName: a.originalFileName,
+          createdAt: a.fileCreatedAt,
+        })),
+        // Bild same-origin über den /api-Proxy laden (wie in der Vorschau).
+        (assetId) =>
+          `${immichConfig.baseUrl}/assets/${assetId}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`,
+        (done, total) => setLocalUploadProgress({ done, total }),
+      );
+      setAssets(localAlbumAssets(updated));
+      if (added > 0) {
+        setShowImmichImport(false);
+        setImmichPicked(new Set());
+      }
+      if (failed > 0) {
+        setImmichError(
+          `${failed} von ${picked.length} Fotos konnten nicht übernommen werden.`,
+        );
+      }
+    } catch (e) {
+      console.error("Immich-Import fehlgeschlagen:", e);
+      setImmichError("Import fehlgeschlagen.");
     } finally {
       setIsUploadingLocal(false);
       setLocalUploadProgress(null);
@@ -2175,6 +2276,18 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               </label>
             )}
 
+            {isLocal && immichAvailable && (
+              <button
+                onClick={openImmichImport}
+                disabled={isUploadingLocal}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:bg-stone-50 disabled:pointer-events-none disabled:opacity-60"
+                title="Fotos aus einem Immich-Album in dieses lokale Album übernehmen"
+              >
+                <Icon path={mdiImageMultipleOutline} size={0.8} />
+                Aus Immich
+              </button>
+            )}
+
             {/* Ansicht: Einzel/Doppel */}
             <div className="inline-flex items-center rounded-lg border border-stone-300 bg-white p-0.5 shadow-sm">
               <button
@@ -2864,6 +2977,141 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 </button>
               ))}
           </div>
+        </div>
+      )}
+
+      {showImmichImport && (
+        <div className="mb-6 rounded border border-stone-300 bg-stone-50 p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-stone-700">
+              {immichSource
+                ? `Aus Immich übernehmen — ${immichSource.albumName}`
+                : "Aus Immich übernehmen — Album wählen"}
+            </h3>
+            <div className="flex items-center gap-3">
+              {immichSource && (
+                <button
+                  onClick={() => {
+                    setImmichSource(null);
+                    setImmichPicked(new Set());
+                  }}
+                  className="text-xs text-stone-500 transition-colors hover:text-stone-700"
+                >
+                  ← Alben
+                </button>
+              )}
+              <button
+                onClick={() => setShowImmichImport(false)}
+                className="text-xs text-stone-500 transition-colors hover:text-stone-700"
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+
+          {immichError && (
+            <p className="mb-2 rounded bg-red-50 px-2 py-1 text-xs text-red-700">
+              {immichError}
+            </p>
+          )}
+
+          {immichBusy && (
+            <p className="py-4 text-center text-sm text-stone-500">Lädt…</p>
+          )}
+
+          {/* Schritt 1: Immich-Album auswählen */}
+          {!immichBusy && !immichSource && (
+            <div className="flex max-h-64 flex-wrap gap-2 overflow-y-auto">
+              {(immichAlbums ?? []).length === 0 ? (
+                <p className="text-sm text-stone-500">
+                  Keine Immich-Alben gefunden.
+                </p>
+              ) : (
+                (immichAlbums ?? []).map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => openImmichSource(a.id)}
+                    className="rounded border border-stone-300 bg-white px-3 py-2 text-left text-sm text-stone-700 shadow-sm transition-colors hover:border-primary-400 hover:bg-primary-50/40"
+                  >
+                    <span className="font-medium">{a.albumName}</span>
+                    <span className="ml-2 text-xs text-stone-500">
+                      {a.assetCount} Fotos
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Schritt 2: Fotos auswählen */}
+          {!immichBusy && immichSource && (
+            <>
+              <div className="mb-2 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() =>
+                    setImmichPicked(
+                      immichPicked.size === immichSourceAssets.length
+                        ? new Set()
+                        : new Set(immichSourceAssets.map((a) => a.id)),
+                    )
+                  }
+                  className="text-xs text-primary-700 underline-offset-2 hover:underline"
+                >
+                  {immichPicked.size === immichSourceAssets.length
+                    ? "Auswahl aufheben"
+                    : "Alle auswählen"}
+                </button>
+                <span className="text-xs text-stone-500">
+                  {immichPicked.size} von {immichSourceAssets.length} gewählt
+                </span>
+                <button
+                  onClick={handleImportFromImmich}
+                  disabled={immichPicked.size === 0 || isUploadingLocal}
+                  className="ml-auto rounded bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {isUploadingLocal
+                    ? `Übernimmt… ${localUploadProgress?.done ?? 0}/${localUploadProgress?.total ?? 0}`
+                    : `${immichPicked.size} Foto(s) übernehmen`}
+                </button>
+              </div>
+              <div className="flex max-h-64 flex-wrap gap-3 overflow-y-auto">
+                {immichSourceAssets.map((asset) => {
+                  const picked = immichPicked.has(asset.id);
+                  return (
+                    <button
+                      key={asset.id}
+                      onClick={() =>
+                        setImmichPicked((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(asset.id)) next.delete(asset.id);
+                          else next.add(asset.id);
+                          return next;
+                        })
+                      }
+                      className={`relative h-24 w-24 overflow-hidden rounded border transition ${
+                        picked
+                          ? "border-primary-500 ring-2 ring-primary-500"
+                          : "border-stone-300 hover:ring-2 hover:ring-primary-300"
+                      }`}
+                      title={asset.originalFileName}
+                    >
+                      <img
+                        src={`${immichConfig.baseUrl}/assets/${asset.id}/thumbnail?size=preview&apiKey=${immichConfig.apiKey}`}
+                        alt={asset.originalFileName}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                      {picked && (
+                        <span className="absolute right-1 top-1 rounded-full bg-primary-600 px-1.5 text-xs font-bold text-white">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
 
