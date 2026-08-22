@@ -120,6 +120,7 @@ import {
   mdiBookOpenPageVariantOutline,
   mdiCropRotate,
   mdiCalendarOutline,
+  mdiRotateRight,
   mdiImageEditOutline,
   mdiClose,
   mdiMapMarkerOutline,
@@ -414,6 +415,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     Map<string, PageAlignment>
   >(() => new Map(Object.entries(initialConfig.imageAlignments)));
   // Datumsanzeige je Foto (Override; ohne Eintrag gilt das globale showDates).
+  const [rotations, setRotations] = useState<Map<string, number>>(
+    () => new Map(Object.entries(initialConfig.rotations)),
+  );
   const [dateVisibility, setDateVisibility] = useState<Map<string, boolean>>(
     () => new Map(Object.entries(initialConfig.dateVisibility)),
   );
@@ -631,6 +635,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       heightFactors: Object.fromEntries(heightFactors),
       imageAlignments: Object.fromEntries(imageAlignments),
       dateVisibility: Object.fromEntries(dateVisibility),
+      rotations: Object.fromEntries(rotations),
       customOrdering,
       descriptionPositions: Object.fromEntries(descriptionPositions),
       pageAlignments: Object.fromEntries(pageAlignments),
@@ -668,6 +673,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     heightFactors,
     imageAlignments,
     dateVisibility,
+    rotations,
     customOrdering,
     descriptionPositions,
     pageAlignments,
@@ -973,6 +979,18 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       const wanted = !isDateVisible(assetId);
       if (wanted === showDates) next.delete(assetId);
       else next.set(assetId, wanted);
+      return next;
+    });
+  };
+
+  // Foto in 90°-Schritten drehen. Das Seitenverhältnis dreht sich mit, das
+  // Layout bricht die Zeile also passend neu um (siehe pages-useMemo).
+  const rotatePhoto = (assetId: string) => {
+    setRotations((prev) => {
+      const next = new Map(prev);
+      const deg = ((next.get(assetId) ?? 0) + 90) % 360;
+      if (deg === 0) next.delete(assetId);
+      else next.set(assetId, deg);
       return next;
     });
   };
@@ -1606,6 +1624,22 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       }
     });
 
+    // Um 90°/270° gedrehte Fotos: Seitenverhältnis tauschen, damit das Layout
+    // die gedrehte Form einplant (Hochformat wird zu Querformat und umgekehrt).
+    layoutAssets.forEach((asset) => {
+      const deg = rotations.get(asset.id) ?? 0;
+      if (deg !== 90 && deg !== 270) return;
+      const current = adjustedAspectRatios.get(asset.id);
+      let ratio = current;
+      if (!ratio) {
+        const width = asset.exifInfo?.exifImageWidth || 1;
+        const height = asset.exifInfo?.exifImageHeight || 1;
+        ratio =
+          asset.exifInfo?.orientation === "6" ? height / width : width / height;
+      }
+      adjustedAspectRatios.set(asset.id, 1 / (ratio || 1));
+    });
+
     const layoutOptions = {
       pageSize: "CUSTOM" as const,
       orientation: "portrait" as const,
@@ -1653,6 +1687,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     layoutMode,
     heightFactors,
     pageLayoutModes,
+    rotations,
   ]);
 
   // Den globalen "Bild hier ablegen"-Hinweis zuverlässig zurücksetzen — bei JEDEM
@@ -3545,6 +3580,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                                 ? photoBox.asset.exifInfo?.description
                                 : undefined,
                               dateText: photoDateText(photoBox.asset),
+                              imageRotation: rotations.get(photoBox.asset.id),
                               styles: pdfStyles,
                               cropPosition: cropPositions.get(photoBox.asset.id),
                             }}
@@ -5008,6 +5044,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                               ? photoBox.asset.exifInfo?.description
                               : undefined,
                             dateText: photoDateText(photoBox.asset),
+                            imageRotation: rotations.get(photoBox.asset.id),
                             styles: webStyles,
                             onLabelClick: (e) =>
                               handleDescriptionClick(photoBox.asset.id, e),
@@ -5259,6 +5296,24 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                               aria-label="Zuschneiden"
                             >
                               <Icon path={mdiCropRotate} size={0.7} />
+                            </button>
+                            <button
+                              className={`rounded p-1 text-white transition-colors hover:bg-white/20 ${
+                                (rotations.get(photoBox.asset.id) ?? 0) !== 0
+                                  ? "bg-primary-500"
+                                  : ""
+                              }`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                rotatePhoto(photoBox.asset.id);
+                              }}
+                              title={`Um 90° drehen (aktuell ${
+                                rotations.get(photoBox.asset.id) ?? 0
+                              }°) — das Seitenverhältnis dreht sich mit`}
+                              aria-label="Um 90 Grad drehen"
+                            >
+                              <Icon path={mdiRotateRight} size={0.7} />
                             </button>
                             <button
                               className={`rounded p-1 text-white transition-colors hover:bg-white/20 ${

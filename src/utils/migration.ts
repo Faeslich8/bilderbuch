@@ -130,6 +130,18 @@ function sanitizeExtraPages(raw: unknown): ExtraPage[] {
     .map((p) => ({ id: p.id, afterPage: p.afterPage }));
 }
 
+/** Bilddrehungen säubern: nur 0/90/180/270; 0 wird gar nicht erst gespeichert. */
+function sanitizeRotations(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!isPlainObject(raw)) return out;
+  for (const [assetId, deg] of Object.entries(raw)) {
+    if (typeof deg !== "number" || !Number.isFinite(deg)) continue;
+    const norm = ((Math.round(deg / 90) * 90) % 360 + 360) % 360;
+    if (norm !== 0) out[assetId] = norm;
+  }
+  return out;
+}
+
 function sanitizeCropPositions(raw: unknown): Record<string, CropPosition> {
   const out: Record<string, CropPosition> = {};
   if (!isPlainObject(raw)) return out;
@@ -271,6 +283,7 @@ export function migrateRawAlbumConfig(
       heightFactors: {},
       imageAlignments: {},
       dateVisibility: {},
+      rotations: {},
       customOrdering: null,
       pageAlignments: {},
       pageLayoutModes: {},
@@ -301,6 +314,7 @@ export function migrateRawAlbumConfig(
   const dateVisibility = isPlainObject(raw.dateVisibility)
     ? (raw.dateVisibility as Record<string, boolean>)
     : {};
+  const rotations = sanitizeRotations(raw.rotations);
   const customOrdering = Array.isArray(raw.customOrdering)
     ? (raw.customOrdering as string[])
     : null;
@@ -323,6 +337,7 @@ export function migrateRawAlbumConfig(
       heightFactors,
       imageAlignments,
       dateVisibility,
+      rotations,
       customOrdering,
       pageAlignments,
       pageLayoutModes,
@@ -347,6 +362,7 @@ export function migrateRawAlbumConfig(
     heightFactors,
     imageAlignments,
     dateVisibility,
+    rotations,
     customOrdering,
     pageAlignments,
     pageLayoutModes,

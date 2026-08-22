@@ -213,6 +213,61 @@ function cropStyle(cropPosition?: CropPosition) {
   return style;
 }
 
+/** Normiert eine Drehung auf 0/90/180/270. */
+export function normalizeRotation(rotation?: number): 0 | 90 | 180 | 270 {
+  const r = (((Math.round((rotation ?? 0) / 90) * 90) % 360) + 360) % 360;
+  return r as 0 | 90 | 180 | 270;
+}
+
+/** Vierteldrehung (90/270)? Dann tauschen sich Breite und Höhe. */
+export function isQuarterTurn(rotation?: number): boolean {
+  const r = normalizeRotation(rotation);
+  return r === 90 || r === 270;
+}
+
+/**
+ * Stil für ein um 0/90/180/270° gedrehtes Bild, das seine Box weiterhin voll
+ * ausfüllt. Bei 90/270 wird das Bild mit GETAUSCHTEN Kantenlängen gezeichnet
+ * und um seine Mitte gedreht — danach deckt es die Box exakt ab. Das passt zum
+ * Layout, das für gedrehte Fotos ebenfalls das Seitenverhältnis tauscht.
+ *
+ * Zoom-Crop (transform: scale) wird mit einkomponiert, damit sich die beiden
+ * Transformationen nicht gegenseitig überschreiben. Identisch in Web und PDF.
+ */
+export function imageVisualStyle(
+  cropPosition: CropPosition | undefined,
+  rotation: number | undefined,
+  boxWidthPt: number,
+  boxHeightPt: number,
+) {
+  const r = normalizeRotation(rotation);
+  const crop = cropStyle(cropPosition);
+  if (r === 0) return crop;
+
+  const scale = cropPosition?.scale && cropPosition.scale > 1 ? cropPosition.scale : 1;
+  const transform =
+    scale > 1 ? `rotate(${r}deg) scale(${scale})` : `rotate(${r}deg)`;
+  const base = {
+    ...(cropPosition
+      ? { objectPosition: `${cropPosition.x}% ${cropPosition.y}%` }
+      : {}),
+    transform,
+    // Gedreht wird immer um die Bildmitte; sonst wandert das Bild aus der Box.
+    transformOrigin: "center",
+  };
+  if (r === 180) return base;
+
+  // 90/270: Kanten tauschen und mittig in der Box platzieren.
+  return {
+    ...base,
+    position: "absolute" as const,
+    width: boxHeightPt,
+    height: boxWidthPt,
+    left: (boxWidthPt - boxHeightPt) / 2,
+    top: (boxHeightPt - boxWidthPt) / 2,
+  };
+}
+
 export interface PdfImageContext {
   imageUrl: string;
   descPosition: Position;
@@ -221,6 +276,8 @@ export interface PdfImageContext {
   /** Bereits upstream über showDates + fileCreatedAt gefiltert; undefined ⇒ nicht zeigen. */
   dateText?: string;
   styles: PdfStyles;
+  /** Drehung des Bildinhalts in Grad (0/90/180/270). */
+  imageRotation?: number;
   /** Bildausschnitt (object-position); identisch zur Web-Vorschau angewendet. */
   cropPosition?: CropPosition;
 }
@@ -234,6 +291,8 @@ export interface WebImageContext {
   styles: WebStyles;
   /** Web-only: Klick auf Datum/Beschreibung (Position zyklieren). PDF ignoriert das. */
   onLabelClick?: (event: React.MouseEvent) => void;
+  /** Drehung des Bildinhalts in Grad (0/90/180/270). */
+  imageRotation?: number;
   /** Bildausschnitt (object-position); identisch zum PDF-Export angewendet. */
   cropPosition?: CropPosition;
 }
@@ -249,8 +308,15 @@ export function PdfElement({
   element: ImageElement;
   ctx: PdfImageContext;
 }) {
-  const { imageUrl, descPosition, description, dateText, styles, cropPosition } =
-    ctx;
+  const {
+    imageUrl,
+    descPosition,
+    description,
+    dateText,
+    styles,
+    cropPosition,
+    imageRotation,
+  } = ctx;
   const hasDescription = !!description;
   const isLeftRight = isLeftRightPos(descPosition, hasDescription);
   const { imageWidth, height } = imageSplit(element, isLeftRight);
@@ -283,9 +349,9 @@ export function PdfElement({
                 width: imageWidth,
                 height,
                 objectFit: "cover",
-                ...cropStyle(cropPosition),
+                ...imageVisualStyle(cropPosition, imageRotation, imageWidth, height),
               }
-            : { ...photoStaticStyles.photo, ...cropStyle(cropPosition) }
+            : { ...photoStaticStyles.photo, ...imageVisualStyle(cropPosition, imageRotation, imageWidth, height) }
         }
       />
 
@@ -380,6 +446,7 @@ export function WebElement({
     styles,
     onLabelClick,
     cropPosition,
+    imageRotation,
   } = ctx;
   const hasDescription = !!description;
   const isLeftRight = isLeftRightPos(descPosition, hasDescription);
@@ -406,7 +473,13 @@ export function WebElement({
         className="object-cover w-full h-full"
         style={{
           ...(isLeftRight ? { width: `${imageWidth}px`, flexShrink: 0 } : {}),
-          ...cropStyle(cropPosition),
+          ...imageVisualStyle(cropPosition, imageRotation, imageWidth, toPoints(element.height)),
+          // Bei Vierteldrehungen ist das Bild absichtlich breiter als seine Box
+          // (getauschte Kanten). Tailwinds Preflight (img { max-width: 100% })
+          // wuerde das zurueckstutzen — hier gezielt aufheben.
+          ...(isQuarterTurn(imageRotation)
+            ? { maxWidth: "none", maxHeight: "none" }
+            : {}),
         }}
         loading="lazy"
         draggable={false}
