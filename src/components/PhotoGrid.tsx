@@ -117,6 +117,7 @@ import {
   mdiVectorRectangle,
   mdiBookOpenPageVariantOutline,
   mdiCropRotate,
+  mdiCalendarOutline,
   mdiImageEditOutline,
   mdiClose,
   mdiMapMarkerOutline,
@@ -410,6 +411,10 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const [imageAlignments, setImageAlignments] = useState<
     Map<string, PageAlignment>
   >(() => new Map(Object.entries(initialConfig.imageAlignments)));
+  // Datumsanzeige je Foto (Override; ohne Eintrag gilt das globale showDates).
+  const [dateVisibility, setDateVisibility] = useState<Map<string, boolean>>(
+    () => new Map(Object.entries(initialConfig.dateVisibility)),
+  );
   // Layout-Modus je logischer Seite (Override; sonst gilt layoutMode).
   const [pageLayoutModes, setPageLayoutModes] = useState<
     Map<number, "justified" | "collage">
@@ -623,6 +628,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       customAspectRatios: Object.fromEntries(customAspectRatios),
       heightFactors: Object.fromEntries(heightFactors),
       imageAlignments: Object.fromEntries(imageAlignments),
+      dateVisibility: Object.fromEntries(dateVisibility),
       customOrdering,
       descriptionPositions: Object.fromEntries(descriptionPositions),
       pageAlignments: Object.fromEntries(pageAlignments),
@@ -659,6 +665,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     customAspectRatios,
     heightFactors,
     imageAlignments,
+    dateVisibility,
     customOrdering,
     descriptionPositions,
     pageAlignments,
@@ -884,6 +891,33 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       else if (cur === "left") next.set(assetId, "center");
       else if (cur === "center") next.set(assetId, "right");
       else next.delete(assetId);
+      return next;
+    });
+  };
+
+  // Datumsanzeige eines einzelnen Fotos: eigener Eintrag gewinnt, sonst gilt
+  // die globale Einstellung (Zahnrad -> "Datum anzeigen").
+  const isDateVisible = (assetId: string): boolean =>
+    dateVisibility.get(assetId) ?? showDates;
+
+  /** Formatiertes Aufnahmedatum – oder undefined, wenn es nicht gezeigt wird. */
+  const photoDateText = (asset: AssetResponseDto): string | undefined =>
+    isDateVisible(asset.id) && asset.fileCreatedAt
+      ? new Date(asset.fileCreatedAt).toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : undefined;
+
+  // Aufnahmedatum für EIN Foto ein-/ausblenden. Entspricht der Zustand danach
+  // wieder der globalen Einstellung, wird der Override entfernt (kein Ballast).
+  const togglePhotoDate = (assetId: string) => {
+    setDateVisibility((prev) => {
+      const next = new Map(prev);
+      const wanted = !isDateVisible(assetId);
+      if (wanted === showDates) next.delete(assetId);
+      else next.set(assetId, wanted);
       return next;
     });
   };
@@ -3397,16 +3431,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                               description: hasDescription
                                 ? photoBox.asset.exifInfo?.description
                                 : undefined,
-                              dateText:
-                                showDates && photoBox.asset.fileCreatedAt
-                                  ? new Date(
-                                      photoBox.asset.fileCreatedAt,
-                                    ).toLocaleDateString(undefined, {
-                                      year: "numeric",
-                                      month: "short",
-                                      day: "numeric",
-                                    })
-                                  : undefined,
+                              dateText: photoDateText(photoBox.asset),
                               styles: pdfStyles,
                               cropPosition: cropPositions.get(photoBox.asset.id),
                             }}
@@ -4869,16 +4894,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                             description: hasDescription
                               ? photoBox.asset.exifInfo?.description
                               : undefined,
-                            dateText:
-                              showDates && photoBox.asset.fileCreatedAt
-                                ? new Date(
-                                    photoBox.asset.fileCreatedAt,
-                                  ).toLocaleDateString(undefined, {
-                                    year: "numeric",
-                                    month: "short",
-                                    day: "numeric",
-                                  })
-                                : undefined,
+                            dateText: photoDateText(photoBox.asset),
                             styles: webStyles,
                             onLabelClick: (e) =>
                               handleDescriptionClick(photoBox.asset.id, e),
@@ -5130,6 +5146,37 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                               aria-label="Zuschneiden"
                             >
                               <Icon path={mdiCropRotate} size={0.7} />
+                            </button>
+                            <button
+                              className={`rounded p-1 text-white transition-colors hover:bg-white/20 ${
+                                isDateVisible(photoBox.asset.id)
+                                  ? "bg-primary-500"
+                                  : ""
+                              }`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                togglePhotoDate(photoBox.asset.id);
+                              }}
+                              disabled={!photoBox.asset.fileCreatedAt}
+                              title={
+                                photoBox.asset.fileCreatedAt
+                                  ? `Aufnahmedatum ${
+                                      isDateVisible(photoBox.asset.id)
+                                        ? "ausblenden"
+                                        : "einblenden"
+                                    } — ${new Date(
+                                      photoBox.asset.fileCreatedAt,
+                                    ).toLocaleDateString(undefined, {
+                                      year: "numeric",
+                                      month: "long",
+                                      day: "numeric",
+                                    })}`
+                                  : "Kein Aufnahmedatum vorhanden"
+                              }
+                              aria-label="Aufnahmedatum ein-/ausblenden"
+                            >
+                              <Icon path={mdiCalendarOutline} size={0.7} />
                             </button>
                             <button
                               className="rounded p-1 text-white transition-colors hover:bg-white/20"
