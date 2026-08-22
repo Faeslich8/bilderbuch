@@ -157,6 +157,8 @@ export interface AlbumConfig extends GlobalConfig {
   imageAlignments: Record<string, PageAlignment>;
   /** Datumsanzeige je Foto (Override; fehlt = globales showDates gilt). */
   dateVisibility: Record<string, boolean>;
+  /** Bilddrehung je Foto in Grad (0/90/180/270); dreht auch das Seitenverhaeltnis. */
+  rotations: Record<string, number>;
   customOrdering: string[] | null;
   descriptionPositions: Record<string, Position>;
   pageAlignments: Record<number, PageAlignment>;
@@ -187,6 +189,8 @@ export interface AlbumConfigV2 extends GlobalConfig {
   imageAlignments: Record<string, PageAlignment>;
   /** Datumsanzeige je Foto (Override; fehlt = globales showDates gilt). */
   dateVisibility: Record<string, boolean>;
+  /** Bilddrehung je Foto in Grad (0/90/180/270); dreht auch das Seitenverhaeltnis. */
+  rotations: Record<string, number>;
   customOrdering: string[] | null;
   pageAlignments: Record<number, PageAlignment>;
   /** Layout-Modus je logischer Seite (Override; sonst gilt layoutMode). */
@@ -414,6 +418,7 @@ export function saveAlbumConfig(
       heightFactors: config.heightFactors ?? {},
       imageAlignments: config.imageAlignments ?? {},
       dateVisibility: config.dateVisibility ?? {},
+      rotations: config.rotations ?? {},
       customOrdering: config.customOrdering ?? null,
       pageAlignments: config.pageAlignments ?? {},
       pageLayoutModes: config.pageLayoutModes ?? {},
