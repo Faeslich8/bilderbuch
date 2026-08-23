@@ -30,6 +30,7 @@ import {
   calculateBookLayoutPerPage,
   PAGE_SIZES,
   type PageAlignment,
+  type PhotoBox,
 } from "../utils/pageLayout";
 import {
   loadAlbumConfig,
@@ -2172,6 +2173,73 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     return seq;
   }, [pages, extraPages]);
 
+
+  // Fotos einer eingefügten Seite anordnen (Raster oder Collage).
+  //
+  // Auf eingefügten Seiten liegen Fotos als FREIE Elemente – sie durchlaufen das
+  // Auto-Layout nicht, weshalb es dort bisher keinen Raster/Collage-Schalter gab.
+  // Hier werden dieselben Layout-Engines wie für die Auto-Seiten benutzt: aus den
+  // freien Bildern werden Pseudo-Assets (Id = Element-Id, Seitenverhältnis aus der
+  // aktuellen Elementgröße), das Ergebnis wird auf die Elemente zurückgeschrieben.
+  // Andere Elemente (Text, Formen, Emoji) bleiben unangetastet.
+  const arrangeBlankPage = (
+    extraId: string,
+    mode: "justified" | "collage",
+  ) => {
+    const els = overlayElements[extraId] ?? [];
+    const images = els.filter(isImageElement);
+    if (images.length === 0) return;
+
+    const pseudoAssets = images.map(
+      (el) =>
+        ({
+          id: el.id,
+          type: "IMAGE",
+          exifInfo: {
+            exifImageWidth: Math.max(1, Math.round(el.width)),
+            exifImageHeight: Math.max(1, Math.round(el.height)),
+            orientation: "1",
+          },
+        }) as unknown as AssetResponseDto,
+    );
+
+    // Zeilenhöhe so weit verkleinern, bis alles auf EINE Seite passt – sonst
+    // würde die Engine umbrechen und ein Teil der Bilder läge außerhalb.
+    let rowHeight = validRowHeight;
+    let placed: PhotoBox[] = [];
+    for (let i = 0; i < 24; i++) {
+      const opts = {
+        pageSize: "CUSTOM" as const,
+        orientation: "portrait" as const,
+        margin: validMargin,
+        rowHeight,
+        spacing: validSpacing,
+        customWidth: blankPageWidthPx,
+        customHeight: validPageHeight,
+        combinePages: false,
+      };
+      const pages =
+        mode === "collage"
+          ? calculateCollageLayout(pseudoAssets, opts)
+          : calculatePageLayout(pseudoAssets, opts);
+      if (pages.length === 0) return;
+      placed = pages[0].photos;
+      if (pages.length === 1 && placed.length === images.length) break;
+      rowHeight = Math.max(60, Math.round(rowHeight * 0.85));
+    }
+
+    const boxById = new Map(placed.map((b) => [b.asset.id, b]));
+    setOverlayElements((prev) => ({
+      ...prev,
+      [extraId]: (prev[extraId] ?? []).map((el) => {
+        const box = boxById.get(el.id);
+        return box
+          ? { ...el, x: box.x, y: box.y, width: box.width, height: box.height }
+          : el;
+      }),
+    }));
+    setSelectedElementId(null);
+  };
   // Web-Render einer Leerseite (Kopf mit Steuerung + Canvas mit Overlay).
   const renderBlankPageWeb = (extra: ExtraPage) => (
     <div
@@ -2225,6 +2293,22 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             }}
           />
         </label>
+        {/* Fotos dieser Seite anordnen – dieselben Engines wie bei Auto-Seiten. */}
+        <span className="ml-1 text-xs text-stone-500">Anordnen:</span>
+        <button
+          onClick={() => arrangeBlankPage(extra.id, "justified")}
+          className="text-xs px-2 py-1 bg-white border border-stone-300 rounded hover:bg-stone-50"
+          title="Fotos dieser Seite als Raster anordnen (gleichmäßige Zeilen)"
+        >
+          Raster
+        </button>
+        <button
+          onClick={() => arrangeBlankPage(extra.id, "collage")}
+          className="text-xs px-2 py-1 bg-white border border-stone-300 rounded hover:bg-stone-50"
+          title="Fotos dieser Seite als Collage anordnen (unterschiedlich hohe Kacheln)"
+        >
+          Collage
+        </button>
         <button
           onClick={() => deleteExtraPage(extra.id)}
           className="text-xs px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded"
