@@ -4026,6 +4026,24 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                     placeholder="Text eingeben…"
                     className="text-xs border border-stone-300 rounded px-1 py-0.5 w-44"
                   />
+                  {/* Schriftart – TextElement.fontFamily wurde zwar gespeichert und
+                      von Vorschau UND PDF ausgewertet, war hier aber nie einstellbar. */}
+                  <select
+                    value={selectedElement.fontFamily}
+                    onChange={(e) =>
+                      updateTextElement(selectedElementId, () => ({
+                        fontFamily: e.target.value,
+                      }))
+                    }
+                    className="text-xs border border-stone-300 rounded px-1 py-0.5"
+                    title="Schriftart"
+                  >
+                    {FONT_FAMILIES.map((f) => (
+                      <option key={f.value} value={f.value}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
                   <input
                     type="number"
                     value={selectedElement.fontSize}
