@@ -2173,6 +2173,36 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     return seq;
   }, [pages, extraPages]);
 
+  // Seitennummern über das GANZE Buch – in der echten Reihenfolge, also
+  // einschließlich eingefügter Seiten. Vorher zählten nur die Auto-Seiten, wodurch
+  // eingefügte Seiten gar keine Nummer hatten und die Zählung der Auto-Seiten nach
+  // einer Einfügung nicht mehr zum gedruckten Buch passte.
+  //
+  // Das Titelblatt bleibt bewusst außen vor (es ist der Umschlag und trägt
+  // üblicherweise keine Nummer). Achtung: Diese Zahlen sind reine ANZEIGE –
+  // pageAlignments & Co. bleiben weiterhin über page.pageNumber adressiert.
+  const bookNumbering = useMemo(() => {
+    const perSheet = combinePages ? 2 : 1;
+    const start = new Map<string, number>();
+    let n = 1;
+    for (const item of pageSequence) {
+      const key =
+        item.kind === "auto"
+          ? `auto-${item.page.pageNumber}`
+          : `blank-${item.extra.id}`;
+      start.set(key, n);
+      n += perSheet;
+    }
+    return { start, total: n - 1 };
+  }, [pageSequence, combinePages]);
+
+  /** Erste angezeigte Seitenzahl einer Auto-Seite. */
+  const autoPageStart = (pageNumber: number): number =>
+    bookNumbering.start.get(`auto-${pageNumber}`) ?? pageNumber;
+  /** Erste angezeigte Seitenzahl einer eingefügten Seite. */
+  const blankPageStart = (extraId: string): number =>
+    bookNumbering.start.get(`blank-${extraId}`) ?? 0;
+
 
   // Fotos einer eingefügten Seite anordnen (Raster oder Collage).
   //
@@ -2250,9 +2280,12 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       className="relative isolate mb-10 scroll-mt-40"
     >
       <div className="mb-2 flex flex-wrap items-center justify-center gap-1.5">
-        <span className="px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
-          Leere Seite
+        <span className="inline-block px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
+          {combinePages
+            ? `Seiten ${blankPageStart(extra.id)}–${blankPageStart(extra.id) + 1} von ${bookNumbering.total}`
+            : `Seite ${blankPageStart(extra.id)} von ${bookNumbering.total}`}
         </span>
+        <span className="text-xs text-stone-400">eingefügt</span>
         <button
           onClick={() => moveExtraPage(extra.id, -1)}
           className="text-xs px-2 py-1 bg-white border border-stone-300 rounded hover:bg-stone-50"
@@ -4414,7 +4447,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                       style={{ width: `${displayWidth / 2}px` }}
                     >
                       <span className="inline-block px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
-                        Seite {page.pageNumber * 2 - 1} von {totalLogicalPages}
+                        Seite {autoPageStart(page.pageNumber)} von{" "}
+                        {bookNumbering.total}
                       </span>
                       <div className="flex gap-1">
                         <button
@@ -4478,7 +4512,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                         style={{ width: `${displayWidth / 2}px` }}
                       >
                         <span className="inline-block px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
-                          Seite {page.pageNumber * 2} von {totalLogicalPages}
+                          Seite {autoPageStart(page.pageNumber) + 1} von{" "}
+                          {bookNumbering.total}
                         </span>
                         <div className="flex gap-1">
                           <button
@@ -4582,7 +4617,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                   /* Single page mode - center everything */
                   <div className="text-center mb-2 flex items-center justify-center gap-2">
                     <span className="inline-block px-3 py-1 bg-stone-100 text-stone-600 text-sm rounded">
-                      Page {page.pageNumber} of {totalLogicalPages}
+                      Seite {autoPageStart(page.pageNumber)} von {bookNumbering.total}
                     </span>
                     <div className="flex gap-1">
                       <button
