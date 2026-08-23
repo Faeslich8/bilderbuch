@@ -1,21 +1,18 @@
 # Screenshots
 
-Drop screenshots for the main [README](../../README.md) here.
+The images here are used in the main [README](../../README.md).
 
-Because BilderBuch runs against your own (private) photo library, screenshots are
-intentionally not committed by default — please use photos you are comfortable
-sharing publicly.
+They all show the **neutral example album** that BilderBuch ships with
+("Beispiel · Naturmotive") — stylised landscape graphics, no real photos and no
+personal data. That way the screenshots can be shown publicly even though
+BilderBuch normally works with your own private library.
 
-Suggested shots and file names:
+| File | Shows |
+| --- | --- |
+| `overview.png` | Start page with the album list |
+| `editor.png` | A spread in **grid** mode with page controls |
+| `collage.png` | The same spread in **collage** mode |
+| `tutorial.png` | An inserted page with free text elements |
 
-- `overview.png` — the start page with your albums (Immich + local)
-- `editor.png` — a spread in **grid** mode with the toolbar
-- `collage.png` — a spread in **collage** mode (tall tile + stacked neighbours)
-- `pdf.png` — the PDF export preview
-
-Then reference them in the README's **Screenshots** section, e.g.:
-
-```md
-![Album overview](docs/screenshots/overview.png)
-![Collage spread](docs/screenshots/collage.png)
-```
+If you replace these, please keep using photos you are comfortable sharing
+publicly — and check the album covers too, not just the page content.
