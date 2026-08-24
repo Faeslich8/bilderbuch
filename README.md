@@ -118,7 +118,7 @@ image instead — see [Self-hosting](#self-hosting).
 - **Drawing zones** — sketch with pen/finger/mouse into a blank space
 - **Insertable, zoomable map** showing the GPS coordinates of a page's photos, in the Immich map style
 - **Title page** with image, title/subtitle, own text styling and portrait/landscape option
-- Free **text fields, shapes and emoji** with font, size, color and alignment
+- Free **text fields, shapes and emoji** with size, color, alignment and a choice of fonts — sans, serif, mono and an ornate **script** face
 
 ### Preview & Export
 

@@ -95,6 +95,7 @@ import lora400 from "@fontsource/lora/files/lora-latin-400-normal.woff?url";
 import lora700 from "@fontsource/lora/files/lora-latin-700-normal.woff?url";
 import robotoMono400 from "@fontsource/roboto-mono/files/roboto-mono-latin-400-normal.woff?url";
 import robotoMono700 from "@fontsource/roboto-mono/files/roboto-mono-latin-700-normal.woff?url";
+import greatVibes400 from "@fontsource/great-vibes/files/great-vibes-latin-400-normal.woff?url";
 import Icon from "@mdi/react";
 import {
   mdiFormatAlignLeft,
@@ -151,12 +152,24 @@ Font.register({
     { src: robotoMono700, fontWeight: 700 },
   ],
 });
+// Great Vibes gibt es nur in einem Schnitt. Damit eine Anfrage nach halbfett
+// oder fett im PDF nicht ins Leere läuft, wird derselbe Schnitt für alle drei
+// Gewichte hinterlegt – Schreibschriften haben typischerweise keinen Fettschnitt.
+Font.register({
+  family: "Great Vibes",
+  fonts: [
+    { src: greatVibes400, fontWeight: 400 },
+    { src: greatVibes400, fontWeight: 500 },
+    { src: greatVibes400, fontWeight: 700 },
+  ],
+});
 
 // Auswählbare Schriftfamilien (Web-Vorschau UND PDF-Export identisch).
 const FONT_FAMILIES: { label: string; value: string }[] = [
   { label: "Sans", value: "Roboto" },
   { label: "Serif", value: "Lora" },
   { label: "Mono", value: "Roboto Mono" },
+  { label: "Schreibschrift", value: "Great Vibes" },
 ];
 
 // Farb-Emoji im PDF: jedes Emoji wird zur PDF-Zeit per Canvas aus der OS-Emoji-Schrift
