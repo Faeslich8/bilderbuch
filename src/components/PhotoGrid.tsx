@@ -62,6 +62,7 @@ import {
   elementBoxStyle,
 } from "./ElementRenderer";
 import { photoBoxToImageElement } from "../utils/photoBoxToElement";
+import { planDesign, collectSignals, choosePageModes } from "../utils/autoDesign";
 import { localMediaUrl } from "../utils/remoteStore";
 import {
   isLocalAlbumId,
@@ -123,6 +124,7 @@ import {
   mdiCropRotate,
   mdiCalendarOutline,
   mdiRotateRight,
+  mdiAutoFix,
   mdiImageEditOutline,
   mdiClose,
   mdiMapMarkerOutline,
@@ -432,6 +434,18 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   const [rotations, setRotations] = useState<Map<string, number>>(
     () => new Map(Object.entries(initialConfig.rotations)),
   );
+  // Seitenumbrüche der automatischen Gestaltung (vor diesen Fotos beginnt eine Seite).
+  const [pageBreakBefore, setPageBreakBefore] = useState<Set<string>>(
+    () => new Set(initialConfig.pageBreakBefore),
+  );
+  // Momentaufnahme vor der letzten automatischen Gestaltung – für ein Rückgängig.
+  const [designUndo, setDesignUndo] = useState<{
+    ordering: string[] | null;
+    heightFactors: Map<string, number>;
+    pageLayoutModes: Map<number, "justified" | "collage">;
+    pageBreakBefore: Set<string>;
+  } | null>(null);
+  const [designNote, setDesignNote] = useState<string | null>(null);
   const [dateVisibility, setDateVisibility] = useState<Map<string, boolean>>(
     () => new Map(Object.entries(initialConfig.dateVisibility)),
   );
@@ -650,6 +664,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       imageAlignments: Object.fromEntries(imageAlignments),
       dateVisibility: Object.fromEntries(dateVisibility),
       rotations: Object.fromEntries(rotations),
+      pageBreakBefore: Array.from(pageBreakBefore),
       customOrdering,
       descriptionPositions: Object.fromEntries(descriptionPositions),
       pageAlignments: Object.fromEntries(pageAlignments),
@@ -688,6 +703,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     imageAlignments,
     dateVisibility,
     rotations,
+    pageBreakBefore,
     customOrdering,
     descriptionPositions,
     pageAlignments,
@@ -1330,6 +1346,120 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     setCustomOrdering(null);
   };
 
+  // Automatische Seitengestaltung: analysiert die Fotos und setzt Reihenfolge,
+  // Hervorhebungen, Szenen-Umbrüche und den Modus je Seite in EINEM Schritt.
+  //
+  // Die Seitenmodi hängen davon ab, welche Fotos nach der Neuordnung auf welcher
+  // Seite landen. Deshalb wird das Layout hier einmal vorab durchgerechnet,
+  // statt auf den nächsten Render zu warten – so wird alles in einem Rutsch
+  // gesetzt und der Nutzer sieht kein Zwischenergebnis.
+  const handleAutoDesign = () => {
+    const photos = defaultFilteredAssets;
+    if (photos.length < 2) return;
+
+    // Wie viele Fotos passen bei den aktuellen Einstellungen auf eine Seite?
+    // Daraus leitet sich ab, ab welcher Groesse eine Szene eine eigene Seite
+    // verdient – sonst wuerde die Gestaltung bei kleiner Zeilenhoehe das Buch
+    // in viele fast leere Seiten zerlegen.
+    const baseOpts = {
+      pageSize: "CUSTOM" as const,
+      orientation: "portrait" as const,
+      margin: validMargin,
+      rowHeight: validRowHeight,
+      spacing: validSpacing,
+      customWidth: validPageWidth,
+      customHeight: validPageHeight,
+      combinePages: false,
+      customAspectRatios: new Map(customAspectRatios),
+    };
+    const probe = calculatePageLayout(photos, baseOpts);
+    const perPage = probe.length
+      ? photos.length / probe.length
+      : 6;
+    const plan = planDesign(photos, {
+      minPhotosForOwnPage: Math.max(3, Math.round(perPage * 0.6)),
+    });
+    const signals = collectSignals(photos);
+
+    // Leerräume/Karten sind keine Fotos und werden nicht umsortiert – sie
+    // behalten ihre ungefähre Position in der Reihenfolge.
+    const blockerSlots: { index: number; id: string }[] = [];
+    (customOrdering ?? []).forEach((id, i) => {
+      if (isBlocker(id)) blockerSlots.push({ index: i, id });
+    });
+    const ordering = [...plan.ordering];
+    for (const slot of blockerSlots) {
+      ordering.splice(Math.min(slot.index, ordering.length), 0, slot.id);
+    }
+
+    // Layout mit dem neuen Plan vorab rechnen, um die Seitenmodi zu bestimmen.
+    const byId = new Map(photos.map((a) => [a.id, a]));
+    const planned = plan.ordering
+      .map((id) => byId.get(id))
+      .filter((a): a is AssetResponseDto => !!a);
+    const previewPages = calculatePageLayout(planned, {
+      ...baseOpts,
+      pageBreakBefore: new Set(plan.pageBreakBefore),
+    });
+    const modes = choosePageModes(previewPages, signals);
+
+    // Im Doppelseiten-Modus teilen sich beide Hälften einer Doppelseite EINEN
+    // Modus (so liest ihn der Seitenschalter). Die Analyse arbeitet dagegen auf
+    // logischen Einzelseiten – daher hier zusammenfassen: qualifiziert sich eine
+    // Hälfte für Collage, gilt das für die ganze Doppelseite.
+    const effectiveModes = new Map<number, "justified" | "collage">();
+    if (combinePages) {
+      const spreads = new Set<number>();
+      for (const key of Object.keys(modes)) {
+        spreads.add(Math.ceil(Number(key) / 2));
+      }
+      for (const s of spreads) {
+        effectiveModes.set(s * 2 - 1, "collage");
+        effectiveModes.set(s * 2, "collage");
+      }
+    } else {
+      for (const [k, v] of Object.entries(modes)) {
+        effectiveModes.set(Number(k), v);
+      }
+    }
+
+    // Vorherigen Stand sichern, damit ein Klick alles zurücknimmt.
+    setDesignUndo({
+      ordering: customOrdering,
+      heightFactors: new Map(heightFactors),
+      pageLayoutModes: new Map(pageLayoutModes),
+      pageBreakBefore: new Set(pageBreakBefore),
+    });
+
+    setCustomOrdering(ordering);
+    setHeightFactors(new Map(Object.entries(plan.heightFactors)));
+    setPageBreakBefore(new Set(plan.pageBreakBefore));
+    setPageLayoutModes(new Map(effectiveModes));
+
+    const collagePages = combinePages
+      ? effectiveModes.size / 2
+      : effectiveModes.size;
+    const quelle =
+      plan.stats.withImmichSignals > 0
+        ? `${plan.stats.withImmichSignals} Fotos mit Immich-Merkmalen (Gesichter, Favoriten, Bewertung)`
+        : "ohne Immich-Merkmale – nach Maßen und Aufnahmezeit";
+    setDesignNote(
+      `${plan.stats.scenes} ${plan.stats.scenes === 1 ? "Szene" : "Szenen"} erkannt · ` +
+        `${plan.stats.highlighted} hervorgehoben · ${collagePages} Collage-Seiten · ${quelle}`,
+    );
+  };
+
+  /** Nimmt die letzte automatische Gestaltung vollständig zurück. */
+  const handleUndoAutoDesign = () => {
+    if (!designUndo) return;
+    setCustomOrdering(designUndo.ordering);
+    setHeightFactors(new Map(designUndo.heightFactors));
+    setPageLayoutModes(new Map(designUndo.pageLayoutModes));
+    setPageBreakBefore(new Set(designUndo.pageBreakBefore));
+    setDesignUndo(null);
+    setDesignNote(null);
+  };
+
   // Reset all description position customizations
   const handleResetDescriptionPositions = () => {
     setDescriptionPositions(new Map());
@@ -1666,6 +1796,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       customAspectRatios: adjustedAspectRatios,
       pageAlignments,
       imageAlignments,
+      pageBreakBefore,
     };
     // Per-Seite-Overrides vorhanden -> seitenweise Engine (jede Seite ihr Modus).
     if (pageLayoutModes.size > 0) {
@@ -1702,6 +1833,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     heightFactors,
     pageLayoutModes,
     rotations,
+    pageBreakBefore,
   ]);
 
   // Den globalen "Bild hier ablegen"-Hinweis zuverlässig zurücksetzen — bei JEDEM
@@ -2598,6 +2730,19 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               </button>
             </div>
 
+
+            {/* Automatische Gestaltung des ganzen Buchs. */}
+            {mode === "preview" && (
+              <button
+                onClick={handleAutoDesign}
+                disabled={defaultFilteredAssets.length < 2}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-primary-300 bg-primary-50 px-3 py-2 text-sm font-medium text-primary-800 shadow-sm transition-colors hover:bg-primary-100 disabled:pointer-events-none disabled:opacity-50"
+                title="Buch automatisch gestalten: Szenen erkennen, wichtige Fotos hervorheben, je Seite Raster oder Collage wählen"
+              >
+                <Icon path={mdiAutoFix} size={0.8} />
+                Automatisch gestalten
+              </button>
+            )}
             {/* Einfügen-Menü */}
             {mode === "preview" && (
               <div className="relative">
@@ -3231,6 +3376,31 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                 </button>
               ))}
           </div>
+        </div>
+      )}
+
+      {/* Rückmeldung der automatischen Gestaltung – mit einem Klick zurücknehmbar. */}
+      {designNote && (
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2">
+          <Icon path={mdiAutoFix} size={0.8} className="text-primary-700" />
+          <span className="text-sm text-primary-900">{designNote}</span>
+          <span className="ml-auto flex items-center gap-2">
+            {designUndo && (
+              <button
+                onClick={handleUndoAutoDesign}
+                className="rounded border border-primary-300 bg-white px-2.5 py-1 text-xs font-medium text-primary-800 transition-colors hover:bg-primary-50"
+                title="Reihenfolge, Hervorhebungen, Umbrüche und Seitenmodi wieder auf den Stand davor setzen"
+              >
+                Rückgängig
+              </button>
+            )}
+            <button
+              onClick={() => setDesignNote(null)}
+              className="text-xs text-primary-700 transition-colors hover:text-primary-900"
+            >
+              Schließen
+            </button>
+          </span>
         </div>
       )}
 
