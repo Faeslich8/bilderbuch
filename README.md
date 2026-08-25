@@ -97,6 +97,7 @@ image instead — see [Self-hosting](#self-hosting).
 - **Grid (justified) layout** using @immich/justified-layout-wasm
 - **Collage / masonry mode** — tiles of different heights, aspect-preserving; a tall tile spans rows while neighbours stack, bottoms aligned
 - **Switchable per page** — mix grid and collage spreads in one book without re-paginating the rest
+- **Automatic page design** — detects scenes from capture time and place, highlights standout photos, picks grid or collage per page. Uses the results Immich already computed (faces, favourites, ratings) plus local heuristics; **nothing is sent anywhere**
 - Page formats: **DIN A3–A6** plus custom dimensions, portrait/landscape
 - **Single- and double-page (open-book) view**, with continuous page numbering across inserted pages
 - Adjustable layout parameters (margin, row height, spacing); configurable page background; per-album configuration with global fallback

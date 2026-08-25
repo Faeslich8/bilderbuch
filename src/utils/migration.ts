@@ -284,6 +284,7 @@ export function migrateRawAlbumConfig(
       imageAlignments: {},
       dateVisibility: {},
       rotations: {},
+      pageBreakBefore: [],
       customOrdering: null,
       pageAlignments: {},
       pageLayoutModes: {},
@@ -315,6 +316,9 @@ export function migrateRawAlbumConfig(
     ? (raw.dateVisibility as Record<string, boolean>)
     : {};
   const rotations = sanitizeRotations(raw.rotations);
+  const pageBreakBefore = Array.isArray(raw.pageBreakBefore)
+    ? (raw.pageBreakBefore as string[]).filter((s) => typeof s === "string")
+    : [];
   const customOrdering = Array.isArray(raw.customOrdering)
     ? (raw.customOrdering as string[])
     : null;
@@ -338,6 +342,7 @@ export function migrateRawAlbumConfig(
       imageAlignments,
       dateVisibility,
       rotations,
+      pageBreakBefore,
       customOrdering,
       pageAlignments,
       pageLayoutModes,
@@ -363,6 +368,7 @@ export function migrateRawAlbumConfig(
     imageAlignments,
     dateVisibility,
     rotations,
+    pageBreakBefore,
     customOrdering,
     pageAlignments,
     pageLayoutModes,

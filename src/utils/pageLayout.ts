@@ -70,6 +70,10 @@ export interface LayoutOptions {
   imageAlignments?: Map<string, PageAlignment>; // Ausrichtung einzelner Fotos in ihrer Zeile
   layoutMode?: "justified" | "collage"; // Standard-Modus (für die Per-Seite-Engine)
   pageLayoutModes?: Map<number, "justified" | "collage">; // Modus je logischer Seite
+  // Asset-Ids, vor denen eine neue Seite beginnen soll (Szenenwechsel der
+  // automatischen Gestaltung). Wirkt nur am Zeilenanfang, damit keine Zeile
+  // mitten auseinandergerissen wird.
+  pageBreakBefore?: Set<string>;
 }
 
 /**
@@ -93,6 +97,7 @@ export function calculatePageLayout(
     customAspectRatios,
     pageAlignments,
     imageAlignments,
+    pageBreakBefore,
   } = options;
 
   // Determine page dimensions in pixels
@@ -148,6 +153,9 @@ export function calculatePageLayout(
     height: pageDimensions.height,
   };
   let currentPageY = 0;
+  // Oberkante der zuletzt platzierten Zeile – nur an Zeilenanfängen darf ein
+  // erzwungener Seitenumbruch greifen, sonst risse er eine Zeile auseinander.
+  let prevRowTop = Number.NEGATIVE_INFINITY;
 
   for (let i = 0; i < assets.length; i++) {
     const box = justifiedLayout.getPosition(i);
@@ -155,10 +163,18 @@ export function calculatePageLayout(
 
     // Check if photo fits on current page
     const photoBottom = box.top + box.height;
+    const startsNewRow = box.top > prevRowTop + 0.5;
+    prevRowTop = box.top;
+
+    // Erzwungener Umbruch (Szenenwechsel der automatischen Gestaltung).
+    const forcedBreak =
+      startsNewRow &&
+      pageBreakBefore !== undefined &&
+      pageBreakBefore.has(asset.id);
 
     if (
       currentPage.photos.length > 0 &&
-      photoBottom - currentPageY > contentHeight
+      (forcedBreak || photoBottom - currentPageY > contentHeight)
     ) {
       // Start a new page
       pages.push(currentPage);

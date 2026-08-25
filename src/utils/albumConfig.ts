@@ -159,6 +159,8 @@ export interface AlbumConfig extends GlobalConfig {
   dateVisibility: Record<string, boolean>;
   /** Bilddrehung je Foto in Grad (0/90/180/270); dreht auch das Seitenverhaeltnis. */
   rotations: Record<string, number>;
+  /** Asset-Ids, vor denen die automatische Gestaltung eine neue Seite beginnt. */
+  pageBreakBefore: string[];
   customOrdering: string[] | null;
   descriptionPositions: Record<string, Position>;
   pageAlignments: Record<number, PageAlignment>;
@@ -191,6 +193,8 @@ export interface AlbumConfigV2 extends GlobalConfig {
   dateVisibility: Record<string, boolean>;
   /** Bilddrehung je Foto in Grad (0/90/180/270); dreht auch das Seitenverhaeltnis. */
   rotations: Record<string, number>;
+  /** Asset-Ids, vor denen die automatische Gestaltung eine neue Seite beginnt. */
+  pageBreakBefore: string[];
   customOrdering: string[] | null;
   pageAlignments: Record<number, PageAlignment>;
   /** Layout-Modus je logischer Seite (Override; sonst gilt layoutMode). */
@@ -419,6 +423,7 @@ export function saveAlbumConfig(
       imageAlignments: config.imageAlignments ?? {},
       dateVisibility: config.dateVisibility ?? {},
       rotations: config.rotations ?? {},
+      pageBreakBefore: config.pageBreakBefore ?? [],
       customOrdering: config.customOrdering ?? null,
       pageAlignments: config.pageAlignments ?? {},
       pageLayoutModes: config.pageLayoutModes ?? {},
