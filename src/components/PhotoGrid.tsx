@@ -63,6 +63,7 @@ import {
 } from "./ElementRenderer";
 import { photoBoxToImageElement } from "../utils/photoBoxToElement";
 import { planDesign, collectSignals, choosePageModes } from "../utils/autoDesign";
+import BookPresenter from "./BookPresenter";
 import { localMediaUrl } from "../utils/remoteStore";
 import {
   isLocalAlbumId,
@@ -125,6 +126,7 @@ import {
   mdiCalendarOutline,
   mdiRotateRight,
   mdiAutoFix,
+  mdiPresentationPlay,
   mdiImageEditOutline,
   mdiClose,
   mdiMapMarkerOutline,
@@ -446,6 +448,8 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     pageBreakBefore: Set<string>;
   } | null>(null);
   const [designNote, setDesignNote] = useState<string | null>(null);
+  // Vollbild-Praesentation (Blaettern am Fernseher/Tablet).
+  const [presenting, setPresenting] = useState(false);
   const [dateVisibility, setDateVisibility] = useState<Map<string, boolean>>(
     () => new Map(Object.entries(initialConfig.dateVisibility)),
   );
@@ -2518,6 +2522,261 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     </div>
   );
 
+
+  /* ------------------------------------------------------------------ */
+  /* Präsentation: dieselben Seiten, nur ohne Bedienelemente             */
+  /* ------------------------------------------------------------------ */
+
+  /** Ein Foto (oder Leerraum/Karte) rein zur Anzeige – ohne Griffe und Leisten. */
+  const renderPresentBox = (photoBox: PhotoBox) => {
+    const left = toPoints(photoBox.x);
+    const top = toPoints(photoBox.y);
+    const w = toPoints(photoBox.width);
+    const h = toPoints(photoBox.height);
+    const base = { position: "absolute" as const, left, top, width: w, height: h };
+
+    if (isBlocker(photoBox.asset.id)) {
+      const mapCfg = blockerMaps.get(photoBox.asset.id);
+      if (mapCfg) {
+        // Wie im PDF: der gespeicherte Kartenausschnitt, keine Live-Karte.
+        return mapCfg.snapshot ? (
+          <img
+            key={photoBox.asset.id}
+            src={mapCfg.snapshot}
+            alt=""
+            style={{ ...base, objectFit: "cover" }}
+          />
+        ) : null;
+      }
+      const bText = blockerTexts.get(photoBox.asset.id);
+      const strokes = blockerDrawings.get(photoBox.asset.id) ?? [];
+      if (!bText?.text && strokes.length === 0) return null;
+      return (
+        <div
+          key={photoBox.asset.id}
+          style={{
+            ...base,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 8,
+            overflow: "hidden",
+            ...(bText?.backgroundColor && bText.backgroundColor !== "transparent"
+              ? { backgroundColor: bText.backgroundColor }
+              : {}),
+          }}
+        >
+          {bText?.text && (
+            <span
+              className="whitespace-pre-wrap break-words text-center"
+              style={{
+                fontFamily: bText.fontFamily ?? "Roboto",
+                fontSize: `${bText.fontSize ?? 28}px`,
+                color: bText.color ?? "#1c1917",
+              }}
+            >
+              {bText.text}
+            </span>
+          )}
+          {strokes.length > 0 && (
+            <svg
+              className="absolute inset-0"
+              width="100%"
+              height="100%"
+              viewBox={`0 0 ${w} ${h}`}
+              preserveAspectRatio="none"
+            >
+              {strokes.map((s, si) => (
+                <path
+                  key={si}
+                  d={strokeToPath(s.pts, w, h)}
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth={s.width}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ))}
+            </svg>
+          )}
+        </div>
+      );
+    }
+
+    const customCaption = imageCaptionTexts.get(photoBox.asset.id);
+    const descPosition = descriptionPositions.get(photoBox.asset.id) || "bottom";
+    const hasDescription =
+      showDescriptions && !customCaption && !!photoBox.asset.exifInfo?.description;
+
+    return (
+      <div key={photoBox.asset.id} style={{ ...base, overflow: "hidden" }}>
+        <WebElement
+          element={photoBoxToImageElement(photoBox, 0)}
+          ctx={{
+            imageUrl: assetImageUrl(photoBox.asset.id),
+            alt: photoBox.asset.originalFileName,
+            descPosition,
+            description: hasDescription
+              ? photoBox.asset.exifInfo?.description
+              : undefined,
+            dateText: photoDateText(photoBox.asset),
+            imageRotation: rotations.get(photoBox.asset.id),
+            styles: webStyles,
+            cropPosition: cropPositions.get(photoBox.asset.id),
+          }}
+        />
+        {customCaption?.text && (
+          <div
+            className="absolute inset-x-0 bottom-0 whitespace-pre-wrap break-words px-1 text-center"
+            style={{
+              fontFamily: customCaption.fontFamily ?? "Roboto",
+              fontSize: `${customCaption.fontSize ?? 14}px`,
+              color: customCaption.color ?? "#1c1917",
+              backgroundColor: customCaption.backgroundColor ?? "transparent",
+            }}
+          >
+            {customCaption.text}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /** Freie Elemente einer Seite, rein zur Anzeige. */
+  const renderPresentOverlay = (pageKey: string) =>
+    (overlayElements[pageKey] ?? []).map((el) => (
+      <div
+        key={el.id}
+        className="absolute overflow-hidden"
+        style={{ ...elementBoxStyle(el), zIndex: 40 + el.zIndex }}
+      >
+        {isImageElement(el) ? (
+          <WebElement
+            element={el}
+            ctx={{
+              imageUrl: el.src ?? assetImageUrl(el.assetId),
+              descPosition: "bottom",
+              styles: webStyles,
+            }}
+          />
+        ) : isTextElement(el) ? (
+          <WebTextElement element={el} />
+        ) : isShapeElement(el) ? (
+          <WebShapeElement element={el} />
+        ) : isEmojiElement(el) ? (
+          <WebEmojiElement element={el} />
+        ) : null}
+      </div>
+    ));
+
+  /**
+   * Die Blätter der Präsentation – in derselben Reihenfolge wie im Buch.
+   * Gerendert wird mit denselben Bausteinen wie Vorschau und PDF, nur ohne
+   * Bedienelemente; es gibt also keinen zweiten Renderpfad.
+   */
+  const presentSheets = useMemo(() => {
+    const sheets: { key: string; width: number; height: number; node: React.ReactNode }[] = [];
+
+    if (titlePage) {
+      sheets.push({
+        key: "title",
+        width: titleDisplayW,
+        height: titleDisplayH,
+        node: (
+          <div
+            className="relative h-full w-full overflow-hidden"
+            style={webPageBackgroundStyle(pageBackground)}
+          >
+            {titlePage.imageSrc && (
+              <img
+                src={titlePage.imageSrc}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            )}
+            <div className="absolute inset-x-0 bottom-[12%] px-8 text-center">
+              <div
+                style={{
+                  fontFamily: "Lora",
+                  fontSize: 34,
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  color: titleTextColor,
+                }}
+              >
+                {titlePage.title}
+              </div>
+              {titlePage.subtitle && (
+                <div
+                  className="mt-2"
+                  style={{ fontFamily: "Roboto", fontSize: 18, color: titleTextColor }}
+                >
+                  {titlePage.subtitle}
+                </div>
+              )}
+            </div>
+          </div>
+        ),
+      });
+    }
+
+    for (const item of pageSequence) {
+      if (item.kind === "blank") {
+        sheets.push({
+          key: `blank-${item.extra.id}`,
+          width: blankDisplayW,
+          height: blankDisplayH,
+          node: (
+            <div
+              className="relative h-full w-full overflow-hidden"
+              style={webPageBackgroundStyle(pageBackground)}
+            >
+              {renderPresentOverlay(item.extra.id)}
+            </div>
+          ),
+        });
+      } else {
+        const page = item.page;
+        sheets.push({
+          key: `page-${page.pageNumber}`,
+          width: toPoints(page.width),
+          height: toPoints(page.height),
+          node: (
+            <div
+              className="relative h-full w-full overflow-hidden"
+              style={webPageBackgroundStyle(pageBackground)}
+            >
+              {page.photos.map(renderPresentBox)}
+              {renderPresentOverlay(String(page.pageNumber))}
+            </div>
+          ),
+        });
+      }
+    }
+    return sheets;
+    // Bewusst breit: die Präsentation soll jede Änderung am Buch widerspiegeln.
+  }, [
+    pageSequence,
+    titlePage,
+    overlayElements,
+    pageBackground,
+    rotations,
+    cropPositions,
+    imageCaptionTexts,
+    blockerTexts,
+    blockerDrawings,
+    blockerMaps,
+    descriptionPositions,
+    showDescriptions,
+    dateVisibility,
+    showDates,
+    webStyles,
+    blankDisplayW,
+    blankDisplayH,
+    titleDisplayW,
+    titleDisplayH,
+    titleTextColor,
+  ]);
   // PDF-Render einer Leerseite.
   const renderBlankPagePdf = (extra: ExtraPage) => (
     <Page
@@ -2731,6 +2990,19 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             </div>
 
 
+
+            {/* Vollbild-Präsentation zum Blättern (Fernseher, Tablet). */}
+            {mode === "preview" && (
+              <button
+                onClick={() => setPresenting(true)}
+                disabled={presentSheets.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:bg-stone-50 disabled:pointer-events-none disabled:opacity-50"
+                title="Buch im Vollbild durchblättern – für Fernseher und Tablet (Pfeiltasten, Wischen)"
+              >
+                <Icon path={mdiPresentationPlay} size={0.8} />
+                Präsentieren
+              </button>
+            )}
             {/* Automatische Gestaltung des ganzen Buchs. */}
             {mode === "preview" && (
               <button
@@ -3377,6 +3649,14 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               ))}
           </div>
         </div>
+      )}
+
+      {presenting && (
+        <BookPresenter
+          sheets={presentSheets}
+          stageColor={pageBackground === "darkbrown" ? "#0b0a09" : "#111310"}
+          onClose={() => setPresenting(false)}
+        />
       )}
 
       {/* Rückmeldung der automatischen Gestaltung – mit einem Klick zurücknehmbar. */}
