@@ -2746,6 +2746,19 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               className="relative h-full w-full overflow-hidden"
               style={webPageBackgroundStyle(pageBackground)}
             >
+              {/* Falz/Bundsteg wie in der Vorschau – sonst wirkt die
+                  Praesentation flacher als das Buch im Editor. */}
+              {combinePages && (
+                <div
+                  className="pointer-events-none absolute bottom-0 top-0 z-10"
+                  style={{
+                    left: `${toPoints(page.width) / 2 - 16}px`,
+                    width: "32px",
+                    background:
+                      "linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,0.07) 38%, rgba(0,0,0,0.17) 50%, rgba(0,0,0,0.07) 62%, rgba(0,0,0,0) 100%)",
+                  }}
+                />
+              )}
               {page.photos.map(renderPresentBox)}
               {renderPresentOverlay(String(page.pageNumber))}
             </div>
@@ -2760,6 +2773,7 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
     titlePage,
     overlayElements,
     pageBackground,
+    combinePages,
     rotations,
     cropPositions,
     imageCaptionTexts,

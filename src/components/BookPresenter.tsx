@@ -231,6 +231,9 @@ export default function BookPresenter({
           style={{
             width: sheet.width,
             height: sheet.height,
+            // Ohne dies staucht der Flex-Container das Blatt auf seine Breite,
+            // und der absolut positionierte Inhalt wird abgeschnitten.
+            flexShrink: 0,
             transform: `scale(${scale})`,
             transformOrigin: "center",
             // Inhalte sind reine Anzeige – kein Klick soll etwas auslösen.
