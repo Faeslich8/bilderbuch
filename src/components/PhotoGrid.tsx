@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from "react";
+import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { createPortal } from "react-dom";
 import {
   getAlbumInfo,
@@ -127,6 +127,7 @@ import {
   mdiRotateRight,
   mdiAutoFix,
   mdiPresentationPlay,
+  mdiUndoVariant,
   mdiImageEditOutline,
   mdiClose,
   mdiMapMarkerOutline,
@@ -636,6 +637,113 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
   }, [album.id]);
 
   // Save config to localStorage whenever it changes (with clamped values)
+
+  /* ------------------------------------------------------------------ */
+  /* Rückgängig (letzte Schritte)                                        */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Der Verlauf arbeitet auf Momentaufnahmen genau des Zustands, der ohnehin
+   * gespeichert wird. Dadurch deckt ein Rückgängig ALLE Bearbeitungen ab
+   * (Reihenfolge, Zuschnitte, Drehungen, Beschriftungen, Leerräume, freie
+   * Elemente, Seiteneinstellungen …), ohne dass jede einzelne Aktion eigens
+   * Buch führen muss — und kann nicht vergessen werden, wenn später neue
+   * Funktionen dazukommen.
+   */
+  const UNDO_LIMIT = 5;
+  const undoStackRef = useRef<string[]>([]);
+  const lastSnapshotRef = useRef<string | null>(null);
+  const restoringRef = useRef(false);
+  const [undoDepth, setUndoDepth] = useState(0);
+
+  /** Momentaufnahme wieder einspielen. */
+  const applySnapshot = (snap: string) => {
+    let c: (AlbumConfig & {
+      overlayElements?: Record<string, PageElement[]>;
+      titlePage?: TitlePageConfig | null;
+      extraPages?: ExtraPage[];
+    }) | null = null;
+    try {
+      c = JSON.parse(snap);
+    } catch {
+      return;
+    }
+    if (!c) return;
+
+    restoringRef.current = true;
+    _setPageSize(c.pageSize);
+    _setOrientation(c.orientation);
+    setPageWidth(c.pageWidth);
+    setPageHeight(c.pageHeight);
+    setMargin(c.margin);
+    setCombinePages(c.combinePages);
+    setRowHeight(c.rowHeight);
+    setSpacing(c.spacing);
+    setFilterVideos(c.filterVideos);
+    setShowDates(c.showDates);
+    setShowDescriptions(c.showDescriptions);
+    setFontSize(c.fontSize);
+    setPageBackground(c.pageBackground);
+    setLayoutMode(c.layoutMode);
+    setCustomAspectRatios(new Map(Object.entries(c.customAspectRatios ?? {})));
+    setHeightFactors(new Map(Object.entries(c.heightFactors ?? {})));
+    setImageAlignments(new Map(Object.entries(c.imageAlignments ?? {})));
+    setDateVisibility(new Map(Object.entries(c.dateVisibility ?? {})));
+    setRotations(new Map(Object.entries(c.rotations ?? {})));
+    setPageBreakBefore(new Set(c.pageBreakBefore ?? []));
+    setCustomOrdering(c.customOrdering ?? null);
+    setDescriptionPositions(new Map(Object.entries(c.descriptionPositions ?? {})));
+    setPageAlignments(
+      new Map(
+        Object.entries(c.pageAlignments ?? {}).map(([k, v]) => [Number(k), v]),
+      ),
+    );
+    setPageLayoutModes(
+      new Map(
+        Object.entries(c.pageLayoutModes ?? {}).map(([k, v]) => [Number(k), v]),
+      ),
+    );
+    setExcludedAssetIds(new Set(c.excludedAssetIds ?? []));
+    setCropPositions(new Map(Object.entries(c.cropPositions ?? {})));
+    setBlockerTexts(new Map(Object.entries(c.blockerTexts ?? {})));
+    setImageCaptionTexts(new Map(Object.entries(c.imageCaptionTexts ?? {})));
+    setBlockerDrawings(new Map(Object.entries(c.blockerDrawings ?? {})));
+    setBlockerMaps(new Map(Object.entries(c.blockerMaps ?? {})));
+    setOverlayElements(c.overlayElements ?? {});
+    setTitlePage(c.titlePage ?? null);
+    setExtraPages(c.extraPages ?? []);
+    setSelectedElementId(null);
+  };
+
+  const handleUndo = () => {
+    const prev = undoStackRef.current.pop();
+    if (!prev) return;
+    setUndoDepth(undoStackRef.current.length);
+    // Der Speicher-Effekt darf diesen Sprung nicht als neue Änderung werten,
+    // sonst käme man nie zurück.
+    lastSnapshotRef.current = prev;
+    applySnapshot(prev);
+  };
+
+  // Strg+Z – außer während einer Texteingabe.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z") return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+      e.preventDefault();
+      handleUndo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
   useEffect(() => {
     // Only save if all values are valid
     if (
@@ -680,12 +788,34 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       blockerDrawings: Object.fromEntries(blockerDrawings),
       blockerMaps: Object.fromEntries(blockerMaps),
     };
-    saveAlbumConfig(album.id, {
+    const full = {
       ...config,
       overlayElements,
       titlePage,
       extraPages,
-    });
+    };
+
+    // Verlauf pflegen: Bei jeder echten Änderung wandert der VORHERIGE Stand auf
+    // den Stapel (höchstens UNDO_LIMIT Einträge). Ein Rückgängig selbst legt
+    // nichts nach – sonst käme man nicht weiter zurück.
+    const snapshot = JSON.stringify(full);
+    if (lastSnapshotRef.current === null) {
+      lastSnapshotRef.current = snapshot;
+    } else if (snapshot !== lastSnapshotRef.current) {
+      if (restoringRef.current) {
+        restoringRef.current = false;
+      } else {
+        undoStackRef.current.push(lastSnapshotRef.current);
+        if (undoStackRef.current.length > UNDO_LIMIT) {
+          undoStackRef.current.shift();
+        }
+        setUndoDepth(undoStackRef.current.length);
+      }
+      lastSnapshotRef.current = snapshot;
+    }
+
+    saveAlbumConfig(album.id, full);
+
   }, [
     album.id,
     pageSize,
@@ -2517,6 +2647,19 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
             handleInsertImageFiles(e.dataTransfer.files, extra.id);
         }}
       >
+        {/* Falz/Bundsteg wie bei den Auto-Seiten – eine eingefügte Seite füllt
+            im Doppelmodus ebenfalls die ganze Doppelseite. */}
+        {combinePages && (
+          <div
+            className="pointer-events-none absolute bottom-0 top-0 z-10"
+            style={{
+              left: `${blankDisplayW / 2 - 16}px`,
+              width: "32px",
+              background:
+                "linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,0.07) 38%, rgba(0,0,0,0.17) 50%, rgba(0,0,0,0.07) 62%, rgba(0,0,0,0) 100%)",
+            }}
+          />
+        )}
         {renderOverlay(extra.id)}
       </div>
     </div>
@@ -2550,7 +2693,9 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       }
       const bText = blockerTexts.get(photoBox.asset.id);
       const strokes = blockerDrawings.get(photoBox.asset.id) ?? [];
-      if (!bText?.text && strokes.length === 0) return null;
+      // Gleiche Bedingung wie im PDF: ein Leerraum mit reinem Hintergrund (ohne
+      // Text und Zeichnung) wird ebenfalls gezeichnet.
+      if (!bText && strokes.length === 0) return null;
       return (
         <div
           key={photoBox.asset.id}
@@ -2731,6 +2876,17 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
               className="relative h-full w-full overflow-hidden"
               style={webPageBackgroundStyle(pageBackground)}
             >
+              {combinePages && (
+                <div
+                  className="pointer-events-none absolute bottom-0 top-0 z-10"
+                  style={{
+                    left: `${blankDisplayW / 2 - 16}px`,
+                    width: "32px",
+                    background:
+                      "linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,0.07) 38%, rgba(0,0,0,0.17) 50%, rgba(0,0,0,0.07) 62%, rgba(0,0,0,0) 100%)",
+                  }}
+                />
+              )}
               {renderPresentOverlay(item.extra.id)}
             </div>
           ),
@@ -2801,6 +2957,38 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
       }}
       style={[staticStyles.page, { backgroundColor: PAGE_BG[pageBackground] }]}
     >
+      {/* Falz/Bundsteg – wie bei den Auto-Seiten, damit eingefügte Seiten im
+          Doppelmodus nicht flacher wirken als der Rest des Buchs. */}
+      {combinePages && (
+        <View
+          style={{
+            position: "absolute",
+            left: toPoints(blankPageWidthPx) / 2 - 16,
+            top: 0,
+            width: 32,
+            height: toPoints(validPageHeight),
+          }}
+        >
+          <Svg width={32} height={toPoints(validPageHeight)}>
+            <Defs>
+              <LinearGradient id={`gutter-blank-${extra.id}`} x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor="#000000" stopOpacity={0} />
+                <Stop offset="0.38" stopColor="#000000" stopOpacity={0.07} />
+                <Stop offset="0.5" stopColor="#000000" stopOpacity={0.17} />
+                <Stop offset="0.62" stopColor="#000000" stopOpacity={0.07} />
+                <Stop offset="1" stopColor="#000000" stopOpacity={0} />
+              </LinearGradient>
+            </Defs>
+            <Rect
+              x={0}
+              y={0}
+              width={32}
+              height={toPoints(validPageHeight)}
+              fill={`url(#gutter-blank-${extra.id})`}
+            />
+          </Svg>
+        </View>
+      )}
       {renderPdfOverlay(extra.id)}
     </Page>
   );
@@ -3005,6 +3193,23 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
 
 
 
+
+            {/* Rückgängig – nimmt die letzten Bearbeitungsschritte zurück. */}
+            {mode === "preview" && (
+              <button
+                onClick={handleUndo}
+                disabled={undoDepth === 0}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:bg-stone-50 disabled:pointer-events-none disabled:opacity-40"
+                title={
+                  undoDepth === 0
+                    ? "Nichts zum Zurücknehmen"
+                    : `Letzten Schritt zurücknehmen (${undoDepth} verfügbar) — Strg+Z`
+                }
+              >
+                <Icon path={mdiUndoVariant} size={0.8} />
+                Rückgängig{undoDepth > 0 ? ` (${undoDepth})` : ""}
+              </button>
+            )}
             {/* Vollbild-Präsentation zum Blättern (Fernseher, Tablet). */}
             {mode === "preview" && (
               <button
@@ -5554,6 +5759,35 @@ function PhotoGrid({ immichConfig, album, onBack }: PhotoGridProps) {
                           {/* Zeichnen-Umschalter + Entfernen (nicht während Textbearbeitung) */}
                           {!isEditingBlocker && (
                             <div className="absolute top-1 right-1 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {/* Hintergrund transparent schalten. Der Schalter
+                                  lag bisher nur im Textbearbeiten-Werkzeugkasten
+                                  und war dadurch praktisch unauffindbar. */}
+                              <button
+                                className={`text-[10px] px-2 py-0.5 rounded shadow ${
+                                  blockerEntry?.backgroundColor === "transparent"
+                                    ? "bg-primary-600 text-white hover:bg-primary-700"
+                                    : "bg-stone-800/80 text-white hover:bg-stone-900"
+                                }`}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setBlockerTexts((prev) => {
+                                    const next = new Map(prev);
+                                    const cur = next.get(photoBox.asset.id) ?? { text: "" };
+                                    next.set(photoBox.asset.id, {
+                                      ...cur,
+                                      backgroundColor:
+                                        cur.backgroundColor === "transparent"
+                                          ? undefined
+                                          : "transparent",
+                                    });
+                                    return next;
+                                  });
+                                }}
+                                title="Hintergrund transparent – die Seitenfarbe scheint durch"
+                              >
+                                Transparent
+                              </button>
                               <button
                                 className={`text-[10px] px-2 py-0.5 rounded shadow text-white ${
                                   isDrawing

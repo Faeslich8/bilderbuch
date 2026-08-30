@@ -115,7 +115,7 @@ image instead — see [Self-hosting](#self-hosting).
 
 ### Design Elements
 
-- **Blank pages and design/blank spaces** ("Leerräume") insertable at any position — with **auto-arrange as grid or collage**
+- **Blank pages and design/blank spaces** ("Leerräume") insertable at any position — with **auto-arrange as grid or collage** and a one-click **transparent background**
 - **Drawing zones** — sketch with pen/finger/mouse into a blank space
 - **Insertable, zoomable map** showing the GPS coordinates of a page's photos, in the Immich map style
 - **Title page** with image, title/subtitle, own text styling and portrait/landscape option
@@ -125,6 +125,8 @@ image instead — see [Self-hosting](#self-hosting).
 
 - Live preview with actual page layout and dimensions
 - High-quality PDF export using @react-pdf/renderer (single source of truth for web + PDF)
+- **Fullscreen presentation** for TV and tablet — page-turn animation, arrow keys / remote, swipe, tap zones
+- **Undo** the last five editing steps (button or Ctrl+Z)
 - Clean, responsive UI built with React and Tailwind CSS
 
 ## Using BilderBuch
