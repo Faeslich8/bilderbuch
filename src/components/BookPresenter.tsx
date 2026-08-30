@@ -61,9 +61,14 @@ export default function BookPresenter({
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   const last = sheets.length - 1;
+  // Richtung der letzten Bewegung – steuert, aus welcher Seite das neue Blatt
+  // hereinschwenkt.
+  const [dir, setDir] = useState<1 | -1>(1);
   const go = useCallback(
-    (delta: number) =>
-      setIndex((i) => Math.min(last, Math.max(0, i + delta))),
+    (delta: number) => {
+      if (delta !== 0) setDir(delta > 0 ? 1 : -1);
+      setIndex((i) => Math.min(last, Math.max(0, i + delta)));
+    },
     [last],
   );
 
@@ -225,23 +230,52 @@ export default function BookPresenter({
         if (Math.abs(e.deltaY) > 20) go(e.deltaY > 0 ? 1 : -1);
       }}
     >
-      {/* Blattfläche */}
+      {/* Blätter-Animation: das neue Blatt schwenkt perspektivisch herein –
+          vorwärts von rechts, rückwärts von links. Wer im System „Bewegung
+          reduzieren" gewählt hat, bekommt keinen Schwenk. */}
+      <style>{`
+        @keyframes bb-turn-fwd {
+          from { transform: perspective(1800px) rotateY(32deg) translateX(9%); opacity: 0.25; }
+          to   { transform: perspective(1800px) rotateY(0deg)  translateX(0);  opacity: 1; }
+        }
+        @keyframes bb-turn-back {
+          from { transform: perspective(1800px) rotateY(-32deg) translateX(-9%); opacity: 0.25; }
+          to   { transform: perspective(1800px) rotateY(0deg)   translateX(0);   opacity: 1; }
+        }
+        .bb-turn { animation: bb-turn-fwd 380ms cubic-bezier(0.22, 0.68, 0.35, 1) both; }
+        .bb-turn-back { animation: bb-turn-back 380ms cubic-bezier(0.22, 0.68, 0.35, 1) both; }
+        @media (prefers-reduced-motion: reduce) {
+          .bb-turn, .bb-turn-back { animation: none; }
+        }
+      `}</style>
+      {/* Blattfläche.
+          Zwei Ebenen, weil sich sonst die Transformationen ins Gehege kämen:
+          außen die Wende-Animation (sie setzt transform per Keyframe), innen die
+          Skalierung auf die Bildschirmgröße. */}
       <div className="absolute inset-0 flex items-center justify-center">
         <div
+          key={sheet.key}
+          className={dir === 1 ? "bb-turn" : "bb-turn-back"}
           style={{
-            width: sheet.width,
-            height: sheet.height,
-            // Ohne dies staucht der Flex-Container das Blatt auf seine Breite,
-            // und der absolut positionierte Inhalt wird abgeschnitten.
+            // Die Animationsebene bekommt die SKALIERTEN Maße, damit das
+            // Zentrieren stimmt und nichts abgeschnitten wird.
+            width: sheet.width * scale,
+            height: sheet.height * scale,
             flexShrink: 0,
-            transform: `scale(${scale})`,
-            transformOrigin: "center",
-            // Inhalte sind reine Anzeige – kein Klick soll etwas auslösen.
             pointerEvents: "none",
-            boxShadow: "0 12px 48px rgba(0,0,0,0.55)",
           }}
         >
-          {sheet.node}
+          <div
+            style={{
+              width: sheet.width,
+              height: sheet.height,
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
+              boxShadow: "0 12px 48px rgba(0,0,0,0.55)",
+            }}
+          >
+            {sheet.node}
+          </div>
         </div>
       </div>
 
